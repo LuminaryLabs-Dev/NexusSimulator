@@ -1,0 +1,130 @@
+{
+  "schemaVersion": "nexus.factory-profile.v1",
+  "factory": "ForestFactory",
+  "seed": "hyperreal-forest-001",
+  "profile": "forest.hyperreal.10species",
+  "theme": "hyper realistic skinned 3D forest asset pack with ten distinct tree species",
+  "settings": {
+    "branchDepth": 4,
+    "branchFanout": 3,
+    "captureMode": "deterministic",
+    "fanoutBudget": 1500,
+    "leafCountBudget": 28,
+    "maxDepth": 8,
+    "patchCount": 3,
+    "qualityPreset": "hyperreal",
+    "recordingFps": 60,
+    "speciesList": ["oak", "maple", "birch", "pine", "spruce", "cedar", "willow", "poplar", "cypress", "palm"],
+    "speciesSelection": "cycle",
+    "treesPerPatch": 10
+  },
+  "profiles": {
+    "leaf.broad.green": {
+      "factory": "LeafFactory",
+      "settings": {
+        "count": 1,
+        "curl": 0.16
+      }
+    },
+    "leaf.needle.deep": {
+      "factory": "LeafFactory",
+      "settings": {
+        "count": 1,
+        "curl": 0.08
+      }
+    },
+    "leaf.frond.palm": {
+      "factory": "LeafFactory",
+      "settings": {
+        "count": 1,
+        "curl": 0.24
+      }
+    },
+    "tree.oak.hyperreal": {
+      "factory": "TreeFactory",
+      "settings": { "species": "oak", "branchDepth": 4, "branchFanout": 4, "leafCountBudget": 30 },
+      "spawnSlots": { "leafPoints": { "factory": "LeafFactory", "selection": "same", "profiles": ["leaf.broad.green"] } }
+    },
+    "tree.maple.hyperreal": {
+      "factory": "TreeFactory",
+      "settings": { "species": "maple", "branchDepth": 4, "branchFanout": 4, "leafCountBudget": 30 },
+      "spawnSlots": { "leafPoints": { "factory": "LeafFactory", "selection": "same", "profiles": ["leaf.broad.green"] } }
+    },
+    "tree.birch.hyperreal": {
+      "factory": "TreeFactory",
+      "settings": { "species": "birch", "branchDepth": 4, "branchFanout": 3, "leafCountBudget": 26 },
+      "spawnSlots": { "leafPoints": { "factory": "LeafFactory", "selection": "same", "profiles": ["leaf.broad.green"] } }
+    },
+    "tree.pine.hyperreal": {
+      "factory": "TreeFactory",
+      "settings": { "species": "pine", "branchDepth": 5, "branchFanout": 5, "leafCountBudget": 28 },
+      "spawnSlots": { "leafPoints": { "factory": "LeafFactory", "selection": "same", "profiles": ["leaf.needle.deep"] } }
+    },
+    "tree.spruce.hyperreal": {
+      "factory": "TreeFactory",
+      "settings": { "species": "spruce", "branchDepth": 5, "branchFanout": 6, "leafCountBudget": 28 },
+      "spawnSlots": { "leafPoints": { "factory": "LeafFactory", "selection": "same", "profiles": ["leaf.needle.deep"] } }
+    },
+    "tree.cedar.hyperreal": {
+      "factory": "TreeFactory",
+      "settings": { "species": "cedar", "branchDepth": 5, "branchFanout": 5, "leafCountBudget": 28 },
+      "spawnSlots": { "leafPoints": { "factory": "LeafFactory", "selection": "same", "profiles": ["leaf.needle.deep"] } }
+    },
+    "tree.willow.hyperreal": {
+      "factory": "TreeFactory",
+      "settings": { "species": "willow", "branchDepth": 5, "branchFanout": 4, "leafCountBudget": 32 },
+      "spawnSlots": { "leafPoints": { "factory": "LeafFactory", "selection": "same", "profiles": ["leaf.broad.green"] } }
+    },
+    "tree.poplar.hyperreal": {
+      "factory": "TreeFactory",
+      "settings": { "species": "poplar", "branchDepth": 4, "branchFanout": 3, "leafCountBudget": 26 },
+      "spawnSlots": { "leafPoints": { "factory": "LeafFactory", "selection": "same", "profiles": ["leaf.broad.green"] } }
+    },
+    "tree.cypress.hyperreal": {
+      "factory": "TreeFactory",
+      "settings": { "species": "cypress", "branchDepth": 5, "branchFanout": 5, "leafCountBudget": 28 },
+      "spawnSlots": { "leafPoints": { "factory": "LeafFactory", "selection": "same", "profiles": ["leaf.needle.deep"] } }
+    },
+    "tree.palm.hyperreal": {
+      "factory": "TreeFactory",
+      "settings": { "species": "palm", "branchDepth": 2, "branchFanout": 9, "leafCountBudget": 18 },
+      "spawnSlots": { "leafPoints": { "factory": "LeafFactory", "selection": "same", "profiles": ["leaf.frond.palm"] } }
+    },
+    "patch.hyperreal.mixed": {
+      "factory": "FoliagePatchFactory",
+      "settings": {
+        "treeCount": 10
+      },
+      "spawnSlots": {
+        "treePoints": {
+          "factory": "TreeFactory",
+          "selection": "cycle",
+          "profiles": [
+            "tree.oak.hyperreal",
+            "tree.maple.hyperreal",
+            "tree.birch.hyperreal",
+            "tree.pine.hyperreal",
+            "tree.spruce.hyperreal",
+            "tree.cedar.hyperreal",
+            "tree.willow.hyperreal",
+            "tree.poplar.hyperreal",
+            "tree.cypress.hyperreal",
+            "tree.palm.hyperreal"
+          ]
+        }
+      }
+    }
+  },
+  "spawnSlots": {
+    "patchPoints": {
+      "factory": "FoliagePatchFactory",
+      "selection": "same",
+      "profiles": ["patch.hyperreal.mixed"],
+      "points": [
+        { "id": "patch-west", "position": { "x": -7, "z": -1 }, "seed": "hyperreal-forest-001/patch-west" },
+        { "id": "patch-center", "position": { "x": 0, "z": 1 }, "seed": "hyperreal-forest-001/patch-center" },
+        { "id": "patch-east", "position": { "x": 7, "z": 0 }, "seed": "hyperreal-forest-001/patch-east" }
+      ]
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "nexus-simulator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "nexus-sim": "./src/cli.js"
+  },
+  "scripts": {
+    "start": "node ./src/cli.js",
+    "help": "node ./src/cli.js --help"
+  },
+  "devDependencies": {
+    "playwright": "^1.60.0",
+    "three": "^0.180.0"
+  }
+}

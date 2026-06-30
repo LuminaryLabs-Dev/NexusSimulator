@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "nexus.factory-profile.v1",
+  "factory": "LeafFactory",
+  "seed": "leaf-json-001",
+  "profile": "leaf.maple.green",
+  "theme": "individual green maple leaf exports",
+  "settings": {
+    "count": 24,
+    "curl": 0.18
+  },
+  "profiles": {
+    "leaf.maple.green": {
+      "factory": "LeafFactory",
+      "settings": {
+        "count": 24,
+        "curl": 0.18
+      }
+    }
+  }
+}

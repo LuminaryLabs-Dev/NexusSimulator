@@ -1,0 +1,9 @@
+node_modules/
+.simspaces/
+.nexus-simulator/artifacts/
+NexusSimulator-V1/.simspaces/
+NexusSimulator-V1/.nexus-simulator/asset-packs/
+NexusSimulator-V1/.nexus-simulator/artifacts/
+NexusSimulator-V1/.nexus-simulator/factory-runs/
+.DS_Store
+*.log

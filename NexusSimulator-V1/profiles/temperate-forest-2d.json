@@ -1,0 +1,56 @@
+{
+  "schemaVersion": "nexus.factory-profile.v1",
+  "factory": "ForestFactory2D",
+  "seed": "forest-2d-001",
+  "profile": "temperate.forest.2d",
+  "theme": "2D preview temperate foliage asset pack",
+  "settings": {
+    "patchCount": 2,
+    "fanoutBudget": 500,
+    "maxDepth": 8
+  },
+  "profiles": {
+    "leaf.maple.green.2d": {
+      "factory": "LeafFactory",
+      "settings": {
+        "count": 1,
+        "curl": 0.18
+      }
+    },
+    "tree.oak.young.2d": {
+      "factory": "TreeFactory",
+      "settings": {
+        "branchDepth": 3,
+        "branchFanout": 2,
+        "leafCountBudget": 40
+      },
+      "spawnSlots": {
+        "leafPoints": {
+          "factory": "LeafFactory",
+          "selection": "same",
+          "profiles": ["leaf.maple.green.2d"]
+        }
+      }
+    },
+    "patch.edge.2d": {
+      "factory": "FoliagePatchFactory",
+      "settings": {
+        "treeCount": 3
+      },
+      "spawnSlots": {
+        "treePoints": {
+          "factory": "TreeFactory",
+          "selection": "same",
+          "profiles": ["tree.oak.young.2d"]
+        }
+      }
+    }
+  },
+  "spawnSlots": {
+    "patchPoints": {
+      "factory": "FoliagePatchFactory",
+      "selection": "same",
+      "profiles": ["patch.edge.2d"]
+    }
+  }
+}

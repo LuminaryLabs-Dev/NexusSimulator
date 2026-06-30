@@ -1,0 +1,90 @@
+{
+  "schemaVersion": "nexus.factory-profile.v1",
+  "factory": "ForestFactory",
+  "seed": "forest-001",
+  "profile": "temperate.forest",
+  "theme": "high fidelity temperate foliage asset pack",
+  "settings": {
+    "patchCount": 2,
+    "fanoutBudget": 500,
+    "maxDepth": 8
+  },
+  "profiles": {
+    "leaf.maple.green": {
+      "factory": "LeafFactory",
+      "settings": {
+        "count": 1,
+        "curl": 0.18
+      }
+    },
+    "leaf.oak.gold": {
+      "factory": "LeafFactory",
+      "settings": {
+        "count": 1,
+        "curl": 0.12
+      }
+    },
+    "tree.oak.young": {
+      "factory": "TreeFactory",
+      "settings": {
+        "branchDepth": 3,
+        "branchFanout": 2,
+        "leafCountBudget": 44
+      },
+      "spawnSlots": {
+        "leafPoints": {
+          "factory": "LeafFactory",
+          "selection": "cycle",
+          "profiles": ["leaf.maple.green", "leaf.oak.gold"]
+        }
+      }
+    },
+    "tree.birch.thin": {
+      "factory": "TreeFactory",
+      "settings": {
+        "branchDepth": 3,
+        "branchFanout": 2,
+        "leafCountBudget": 36
+      },
+      "spawnSlots": {
+        "leafPoints": {
+          "factory": "LeafFactory",
+          "selection": "same",
+          "profiles": ["leaf.maple.green"]
+        }
+      }
+    },
+    "patch.edge": {
+      "factory": "FoliagePatchFactory",
+      "settings": {
+        "treeCount": 3
+      },
+      "spawnSlots": {
+        "treePoints": {
+          "factory": "TreeFactory",
+          "selection": "cycle",
+          "profiles": ["tree.oak.young", "tree.birch.thin"]
+        }
+      }
+    }
+  },
+  "spawnSlots": {
+    "patchPoints": {
+      "factory": "FoliagePatchFactory",
+      "selection": "cycle",
+      "profiles": ["patch.edge"],
+      "points": [
+        {
+          "id": "patch-a",
+          "position": { "x": -5, "z": 0 },
+          "seed": "forest-001/patch-a"
+        },
+        {
+          "id": "patch-b",
+          "position": { "x": 5, "z": 1 },
+          "seed": "forest-001/patch-b"
+        }
+      ]
+    }
+  }
+}
