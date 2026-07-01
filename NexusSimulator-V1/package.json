@@ -1,14 +1,24 @@
 {
   "name": "nexus-simulator",
   "version": "0.0.0",
+  "description": "Scenario replay CLI for safe app validation through interaction-surface simtimes and disposable SimSpace runs.",
   "private": true,
+  "license": "UNLICENSED",
   "type": "module",
   "bin": {
     "nexus-sim": "./src/cli.js"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/LuminaryLabs-Dev/NexusSimulator.git"
+  },
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "start": "node ./src/cli.js",
-    "help": "node ./src/cli.js --help"
+    "help": "node ./src/cli.js --help",
+    "help:all": "node ./src/cli.js --help-all"
   },
   "devDependencies": {
     "playwright": "^1.60.0",

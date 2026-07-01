@@ -35,6 +35,7 @@ NexusSimulator is a Node-based simulation translation CLI that defines ordered c
 - Treat a simtime as an interaction surface adapter and a scenario as an app-specific workflow.
 - AR SimTime proves authored AR objective/reward logic and content-duration budgets; it does not prove physical camera permission, WebXR tracking stability, or real surface anchoring.
 - Treat SimSpace as the disposable runtime copy of an app; never launch a validation run from the source app tree when isolation is required.
+- Keep the public CLI path simple: default help shows common validation commands, `--help-all` shows advanced surfaces, and `validate` means scenario compatibility check plus SimSpace run.
 - Future fallback/composition belongs in an orchestrator layer, not inside individual simtimes.
 - Safe browser proof should be non-destructive by default; packet-creating or otherwise destructive scenarios must be explicitly named.
 - Asset-pack production is a NexusSimulator CLI surface under `asset-pack`; it generates local FBX/PNG asset packs, records preview proof through Playwright SimTime, packages only after local quality gates pass, and stores run artifacts under `.nexus-simulator/asset-packs/`.

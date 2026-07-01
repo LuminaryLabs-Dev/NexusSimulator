@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { join } from "node:path";
 import {
   appendScenarioEvent,
   attachApp,
@@ -47,7 +48,36 @@ function usage() {
   console.log([
     "nexus-sim",
     "",
+    "Safe app validation through append-only scenarios and disposable SimSpace runs.",
+    "",
     "Usage:",
+    "  nexus-sim validate <env> <scenario> [--simtime <id>]",
+    "  nexus-sim app detect <path>",
+    "  nexus-sim app attach <env> <path>",
+    "  nexus-sim app smoke <env> [--replace] [--name <scenario>]",
+    "  nexus-sim scenario list <env>",
+    "  nexus-sim scenario show <env> <scenario>",
+    "  nexus-sim scenario check <env> <scenario> [--simtime <id>]",
+    "  nexus-sim simspace run <env> <scenario> [--simtime <id>]",
+    "  nexus-sim simtime list",
+    "  nexus-sim simtime inspect <id>",
+    "",
+    "Default path:",
+    "  attach app -> choose scenario -> check -> simspace run",
+    "",
+    "Notes:",
+    "  simspace run stages a disposable app copy before running.",
+    "  scenario run touches the attached app path directly; see --help-all.",
+    "  nexus-sim --help-all shows advanced factory, asset-pack, itch, and raw scenario commands.",
+  ].join("\n"));
+}
+
+function usageAll() {
+  console.log([
+    "nexus-sim",
+    "",
+    "Usage:",
+    "  nexus-sim validate <env> <scenario> [--simtime <id>]",
     "  nexus-sim env create <name> [--simtime <id>]",
     "  nexus-sim env list",
     "  nexus-sim app detect <path>",
@@ -84,6 +114,7 @@ function usage() {
     "  nexus-sim itch draft verify <pack-id>",
     "",
     "Scenario files are append-only JSONL logs stored in .nexus-simulator/scenarios/.",
+    "Prefer simspace run or validate for safe app validation.",
   ].join("\n"));
 }
 
@@ -173,6 +204,36 @@ async function main(argv) {
 
   if (!scope || scope === "--help" || scope === "-h") {
     usage();
+    return;
+  }
+
+  if (scope === "--help-all" || (scope === "help" && ["all", "advanced"].includes(verb))) {
+    usageAll();
+    return;
+  }
+
+  if (scope === "validate") {
+    const { envName, scenarioName, simtime } = parseScenarioTarget([verb, ...rest]);
+    if (!envName || !scenarioName) throw new Error("Usage: nexus-sim validate <env> <scenario> [--simtime <id>]");
+    const check = checkScenario(envName, scenarioName, simtime);
+    const unsupported = check.results.filter((entry) => !entry.supported);
+    if (unsupported.length) {
+      console.error(`Scenario "${scenarioName}" is not compatible with simtime "${check.adapter.id}".`);
+      unsupported.forEach((entry) => console.error(`Unsupported: ${entry.index + 1}. ${entry.command}`));
+      process.exitCode = 1;
+      return;
+    }
+    console.log(`Check passed: ${scenarioName} is compatible with ${check.adapter.id}.`);
+    const result = await runScenarioInSimSpace(envName, scenarioName, simtime);
+    printValue({
+      artifacts: result.report.output?.artifacts ?? result.report.state?.artifacts ?? [],
+      consoleErrors: result.report.state?.consoleErrors?.length ?? result.report.output?.consoleErrors?.length ?? 0,
+      events: result.report.events,
+      reportPath: join(result.runDir, "report.json"),
+      runDir: result.runDir,
+      simtime: result.report.simtimeId,
+      status: result.report.status,
+    });
     return;
   }
 
