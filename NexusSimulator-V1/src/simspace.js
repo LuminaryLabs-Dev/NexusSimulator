@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve, basename } from "node:path";
 import { randomUUID } from "node:crypto";
 import net from "node:net";
@@ -212,7 +212,10 @@ function stageSourceTree(sourceRoot, runAppDir, attachedAppPath) {
     filter: (src) => {
       const rel = relative(sourceRoot, src);
       if (!rel) return true;
-      return !rel.split(/[\\/]/)[0].startsWith(".simspaces");
+      const topLevel = rel.split(/[\\/]/)[0];
+      if ([".git", ".nexus-simulator", ".simspaces"].includes(topLevel)) return false;
+      const stats = lstatSync(src);
+      return stats.isDirectory() || stats.isFile() || stats.isSymbolicLink();
     },
   });
 
@@ -315,11 +318,12 @@ async function writeCheckpointArtifact(runDir, runId, payload) {
   return checkpoint;
 }
 
-export async function runScenarioInSimSpace(envName, scenarioName, simtimeOverride) {
-  const env = loadEnvRecord(envName);
-  const events = loadScenarioEvents(envName, scenarioName).map(ensureEventShape);
-  const simtimeId = simtimeOverride ?? env.simtime ?? "headless";
-  const sourceRoot = determineSourceRoot(env, events);
+export async function runEventsInSimSpace(env, events, options = {}) {
+  const normalizedEvents = events.map(ensureEventShape);
+  const envName = options.envName ?? env.name ?? "target";
+  const scenarioName = options.scenarioName ?? "generated";
+  const simtimeId = options.simtimeId ?? env.simtime ?? "headless";
+  const sourceRoot = determineSourceRoot(env, normalizedEvents);
   const runId = createRunId(envName, scenarioName, simtimeId);
   const runDir = join(runsDir, runId);
   ensureDir(runDir);
@@ -345,7 +349,7 @@ export async function runScenarioInSimSpace(envName, scenarioName, simtimeOverri
     },
   };
 
-  const transformedEvents = events.map((event) =>
+  const transformedEvents = normalizedEvents.map((event) =>
     rewriteEvent(event, {
       allocatedPort,
       sourceIsFile,
@@ -359,8 +363,10 @@ export async function runScenarioInSimSpace(envName, scenarioName, simtimeOverri
   const manifest = {
     allocatedPort,
     envName,
+    runId,
     scenarioName,
     simtimeId,
+    ...(options.manifest ?? {}),
     cleanupPolicy: "archive",
     createdAt: new Date().toISOString(),
     runDir,
@@ -415,17 +421,30 @@ export async function runScenarioInSimSpace(envName, scenarioName, simtimeOverri
     baseUrl: `http://127.0.0.1:${allocatedPort}/`,
   });
 
-  if (failure) {
+  if (failure && options.throwOnFailure !== false) {
     throw failure;
   }
 
   return {
+    failure,
     report,
     runDir,
     manifest,
     output,
     state,
   };
+}
+
+export async function runScenarioInSimSpace(envName, scenarioName, simtimeOverride) {
+  const env = loadEnvRecord(envName);
+  const events = loadScenarioEvents(envName, scenarioName).map(ensureEventShape);
+  const simtimeId = simtimeOverride ?? env.simtime ?? "headless";
+  return runEventsInSimSpace(env, events, {
+    envName,
+    scenarioName,
+    simtimeId,
+    throwOnFailure: true,
+  });
 }
 
 export async function runScenarioInSimSpaceChunked(envName, scenarioName, simtimeOverride, options = {}) {
@@ -477,6 +496,7 @@ export async function runScenarioInSimSpaceChunked(envName, scenarioName, simtim
       chunked: true,
       chunkSize: Math.max(1, Number(options.chunkSize ?? 5)),
       envName,
+      runId,
       scenarioName,
       simtimeId,
       cleanupPolicy: "archive",

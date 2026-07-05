@@ -23,6 +23,19 @@ node ./src/cli.js --help
 
 ## Safe Validation Path
 
+V2 default path:
+
+```bash
+node ./src/cli.js validate <path> --tool interaction.proof
+node ./src/cli.js report summary <run-id>
+node ./src/cli.js report artifacts <run-id>
+node ./src/cli.js report console <run-id>
+```
+
+`interaction.proof` stages the app in SimSpace, opens it through Playwright, captures before/after screenshots, sends non-destructive input, checks console errors, and writes a normalized report.
+
+Scenario path:
+
 ```bash
 node ./src/cli.js app detect <path>
 node ./src/cli.js app attach <env> <path>
@@ -44,6 +57,10 @@ node ./src/cli.js validate <env> <scenario> --simtime playwright
 node ./src/cli.js app detect <path>
 node ./src/cli.js app attach <env> <path>
 node ./src/cli.js app smoke <env>
+node ./src/cli.js tools
+node ./src/cli.js tools inspect interaction.proof
+node ./src/cli.js validate <path> --tool interaction.proof
+node ./src/cli.js report summary <run-id>
 node ./src/cli.js scenario list <env>
 node ./src/cli.js scenario show <env> <scenario>
 node ./src/cli.js scenario check <env> <scenario> --simtime playwright
@@ -67,6 +84,9 @@ NexusSimulator-V1/
   src/
     cli.js                 CLI entrypoint
     runtime.js             env/scenario storage and replay
+    actions.js             shared CLI/RPC-ready action registry
+    tool-catalog.js        user/agent-facing domain tool manifests
+    report-service.js      SimSpace report readers
     simtimes.js            simtime registry
     playwright-simtime.js  browser surface
     file-simtime.js        filesystem surface

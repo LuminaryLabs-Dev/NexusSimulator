@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import { join } from "node:path";
 import {
   appendScenarioEvent,
   attachApp,
@@ -43,6 +42,21 @@ import {
 import { loadFactoryConfig } from "./factory-profiles.js";
 import { runScenarioInSimSpace } from "./simspace.js";
 import { runScenarioInSimSpaceChunked } from "./simspace.js";
+import {
+  inspectToolAction,
+  listToolActions,
+  validateScenarioAction,
+  validateTargetAction,
+} from "./actions.js";
+import {
+  loadReport,
+  listReports,
+  reportArtifacts,
+  reportConsole,
+  reportFailedStep,
+  reportLogs,
+  reportSummary,
+} from "./report-service.js";
 
 function usage() {
   console.log([
@@ -51,7 +65,11 @@ function usage() {
     "Safe app validation through append-only scenarios and disposable SimSpace runs.",
     "",
     "Usage:",
+    "  nexus-sim validate <path> [--tool interaction.proof]",
     "  nexus-sim validate <env> <scenario> [--simtime <id>]",
+    "  nexus-sim tools",
+    "  nexus-sim tools inspect <id>",
+    "  nexus-sim report summary <run-id>",
     "  nexus-sim app detect <path>",
     "  nexus-sim app attach <env> <path>",
     "  nexus-sim app smoke <env> [--replace] [--name <scenario>]",
@@ -63,10 +81,10 @@ function usage() {
     "  nexus-sim simtime inspect <id>",
     "",
     "Default path:",
-    "  attach app -> choose scenario -> check -> simspace run",
+    "  validate path -> inspect report",
     "",
     "Notes:",
-    "  simspace run stages a disposable app copy before running.",
+    "  validate <path> and simspace run stage a disposable app copy before running.",
     "  scenario run touches the attached app path directly; see --help-all.",
     "  nexus-sim --help-all shows advanced factory, asset-pack, itch, and raw scenario commands.",
   ].join("\n"));
@@ -77,7 +95,17 @@ function usageAll() {
     "nexus-sim",
     "",
     "Usage:",
+    "  nexus-sim validate <path> [--tool interaction.proof] [--medium browser] [--interaction auto-safe]",
     "  nexus-sim validate <env> <scenario> [--simtime <id>]",
+    "  nexus-sim tools",
+    "  nexus-sim tools inspect <id>",
+    "  nexus-sim report get <run-id>",
+    "  nexus-sim report list",
+    "  nexus-sim report summary <run-id>",
+    "  nexus-sim report artifacts <run-id>",
+    "  nexus-sim report console <run-id>",
+    "  nexus-sim report logs <run-id>",
+    "  nexus-sim report failed-step <run-id>",
     "  nexus-sim env create <name> [--simtime <id>]",
     "  nexus-sim env list",
     "  nexus-sim app detect <path>",
@@ -213,28 +241,94 @@ async function main(argv) {
   }
 
   if (scope === "validate") {
-    const { envName, scenarioName, simtime } = parseScenarioTarget([verb, ...rest]);
+    const raw = [verb, ...rest].filter((value) => value !== undefined);
+    const tool = parseNamedOption(raw, "--tool");
+    const medium = parseNamedOption(raw, "--medium");
+    const interactionMode = parseNamedOption(raw, "--interaction") ?? "auto-safe";
+    const cleaned = stripOptions(raw, ["--tool", "--medium", "--interaction", "--simtime"]);
+
+    if (tool || medium || cleaned.length === 1) {
+      const [targetPath] = cleaned;
+      if (!targetPath) throw new Error("Usage: nexus-sim validate <path> [--tool interaction.proof]");
+      printValue(await validateTargetAction({
+        interactionMode,
+        medium,
+        targetPath,
+        toolId: tool,
+      }));
+      return;
+    }
+
+    const simtime = parseSimtimeOverride(raw);
+    const [envName, scenarioName] = cleaned;
     if (!envName || !scenarioName) throw new Error("Usage: nexus-sim validate <env> <scenario> [--simtime <id>]");
-    const check = checkScenario(envName, scenarioName, simtime);
-    const unsupported = check.results.filter((entry) => !entry.supported);
-    if (unsupported.length) {
-      console.error(`Scenario "${scenarioName}" is not compatible with simtime "${check.adapter.id}".`);
-      unsupported.forEach((entry) => console.error(`Unsupported: ${entry.index + 1}. ${entry.command}`));
+    const result = await validateScenarioAction({ envName, scenarioName, simtime });
+    if (!result.supported) {
+      console.error(`Scenario "${scenarioName}" is not compatible with simtime "${result.adapter.id}".`);
+      result.unsupported.forEach((entry) => console.error(`Unsupported: ${entry.index + 1}. ${entry.command}`));
       process.exitCode = 1;
       return;
     }
-    console.log(`Check passed: ${scenarioName} is compatible with ${check.adapter.id}.`);
-    const result = await runScenarioInSimSpace(envName, scenarioName, simtime);
+    console.log(`Check passed: ${scenarioName} is compatible with ${result.adapter.id}.`);
     printValue({
       artifacts: result.report.output?.artifacts ?? result.report.state?.artifacts ?? [],
       consoleErrors: result.report.state?.consoleErrors?.length ?? result.report.output?.consoleErrors?.length ?? 0,
       events: result.report.events,
-      reportPath: join(result.runDir, "report.json"),
+      reportPath: result.reportPath,
       runDir: result.runDir,
       simtime: result.report.simtimeId,
       status: result.report.status,
     });
     return;
+  }
+
+  if (scope === "tools" && (!verb || verb === "list")) {
+    for (const tool of listToolActions()) {
+      console.log(`${tool.id} ${tool.domain} ${tool.medium}`);
+    }
+    return;
+  }
+
+  if (scope === "tools" && verb === "inspect") {
+    const [id] = rest;
+    if (!id) throw new Error("Usage: nexus-sim tools inspect <id>");
+    printValue(inspectToolAction(id));
+    return;
+  }
+
+  if (scope === "report") {
+    const action = verb;
+    const [runId] = rest;
+    if (action === "list") {
+      printValue({ runs: listReports() });
+      return;
+    }
+    if (!runId) throw new Error("Usage: nexus-sim report <get|summary|artifacts|console|logs|failed-step> <run-id>");
+    if (action === "get") {
+      printValue(loadReport(runId).report);
+      return;
+    }
+    if (action === "summary") {
+      printValue(reportSummary(runId));
+      return;
+    }
+    if (action === "artifacts") {
+      printValue({ artifacts: reportArtifacts(runId) });
+      return;
+    }
+    if (action === "console") {
+      printValue(reportConsole(runId));
+      return;
+    }
+    if (action === "logs") {
+      printValue(reportLogs(runId));
+      return;
+    }
+    if (action === "failed-step") {
+      printValue(reportFailedStep(runId));
+      return;
+    }
+    throw new Error("Usage: nexus-sim report <get|list|summary|artifacts|console|logs|failed-step> [run-id]");
   }
 
   if (scope === "factory" && verb === "list") {

@@ -6,6 +6,9 @@ NexusSimulator is a Node-based simulation translation CLI that defines ordered c
 ## Current Architecture
 - `src/cli.js` is the command entrypoint.
 - `src/runtime.js` owns environment/scenario storage and replay orchestration.
+- `src/actions.js` owns the shared CLI/RPC-ready action registry for user-facing validation flows.
+- `src/tool-catalog.js` defines domain tool manifests such as `interaction.proof`.
+- `src/report-service.js` reads normalized SimSpace run reports for agents and CLI users.
 - `src/simtimes.js` defines the simtime adapter registry and the shared adapter contract.
 - `src/app-detection.js` provides read-only app detection for web-app validation targets.
 - `src/playwright-simtime.js` provides real browser-backed app validation through Playwright.
@@ -33,6 +36,8 @@ NexusSimulator is a Node-based simulation translation CLI that defines ordered c
 - `nexusrealtime` SimTime is the private live NexusRealtime app adapter. It drives browser apps through `window.GameHost`, not public `window.__NEXUS_SIMTIME__`, and uses heuristic action loops plus state assertions for The Open Above-style runtime proof.
 - Multi-surface validation should be coordinated by separate scenario runs rather than hidden inside one simtime.
 - Treat a simtime as an interaction surface adapter and a scenario as an app-specific workflow.
+- Treat a tool as the user/agent-facing action abstraction above simtimes; tools choose safe SimSpace execution and focused simtimes internally.
+- `interaction.proof` is the first V2 domain tool. It proves browser render and safe input delivery through Playwright inside SimSpace, then reports passed, failed, or inconclusive evidence.
 - AR SimTime proves authored AR objective/reward logic and content-duration budgets; it does not prove physical camera permission, WebXR tracking stability, or real surface anchoring.
 - Treat SimSpace as the disposable runtime copy of an app; never launch a validation run from the source app tree when isolation is required.
 - Keep the public CLI path simple: default help shows common validation commands, `--help-all` shows advanced surfaces, and `validate` means scenario compatibility check plus SimSpace run.
