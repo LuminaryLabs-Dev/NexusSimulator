@@ -7,11 +7,11 @@
   "author": "Luminary Labs",
   "type": "module",
   "bin": {
-    "nexus-sim": "./src/cli.js"
+    "nexus-sim": "src/cli.js"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/LuminaryLabs-Dev/NexusSimulator.git",
+    "url": "git+https://github.com/LuminaryLabs-Dev/NexusSimulator.git",
     "directory": "NexusSimulator-V1"
   },
   "homepage": "https://github.com/LuminaryLabs-Dev/NexusSimulator#readme",
