@@ -1,107 +1,83 @@
 # NexusSimulator
 
-NexusSimulator is a Node CLI for replaying app-specific scenario logs through interaction-surface adapters called simtimes.
+NexusSimulator is a Node CLI that gives agents a disposable environment for safely launching, testing, and inspecting applications.
 
-The safe default is SimSpace: the app is staged into a disposable run folder, launched there, exercised by a simtime, and reported without touching the original app folder.
+```txt
+target app -> SimSpace copy -> interaction tool -> evidence -> report
+```
+
+The original project stays untouched by default. NexusSimulator stages it in a SimSpace, exercises it through a focused interaction surface, captures evidence, and stops the runtime when validation ends.
+
+## Install
+
+```bash
+npm install --global nexus-simulator@0.0.1
+npx playwright install chromium
+```
+
+Node.js 18 or newer is required.
+
+## Quick Start
+
+Validate a static HTML, canvas, Three.js, or detected Vite application:
+
+```bash
+nexus-sim validate <path> --tool interaction.proof
+```
+
+Inspect the resulting evidence:
+
+```bash
+nexus-sim report summary <run-id>
+nexus-sim report artifacts <run-id>
+nexus-sim report console <run-id>
+```
+
+`interaction.proof` opens the staged application with Playwright, captures before/after screenshots, sends non-destructive input, checks responsiveness and console errors, and writes a normalized report.
+
+## Source Install
+
+```bash
+git clone https://github.com/LuminaryLabs-Dev/NexusSimulator.git
+cd NexusSimulator/NexusSimulator-V1
+npm install
+npx playwright install chromium
+node ./src/cli.js --help
+```
 
 ## Core Model
 
 ```txt
 scenario = app-specific workflow
 simtime = one interaction surface adapter
-simspace = disposable runtime copy of the app
-orchestrator = future fallback/composition layer
+simspace = disposable runtime copy
+tool = agent-facing validation action
+orchestrator = future composition layer
 ```
 
-## Quick Start
+Use `validate` or `simspace run` for safe validation. `scenario run` is an advanced direct runner that can touch an attached source path.
 
-```bash
-cd NexusSimulator-V1
-npm install
-node ./src/cli.js --help
-```
+## Supported Surfaces
 
-## Safe Validation Path
+- Playwright browser validation for static HTML, Vite, canvas, Three.js, and A-Frame targets.
+- Deterministic web and headless state-machine scaffolds.
+- Filesystem inspection through the file simtime.
+- Terminal, human-controller, AR, and specialized runtime adapters.
 
-V2 default path:
+Current automatic path-first validation focuses on browser targets. Authentication-heavy applications, native desktop windows, mobile devices, external databases, and destructive workflows require explicit scenarios or future adapters.
 
-```bash
-node ./src/cli.js validate <path> --tool interaction.proof
-node ./src/cli.js report summary <run-id>
-node ./src/cli.js report artifacts <run-id>
-node ./src/cli.js report console <run-id>
-```
+## Local Data
 
-`interaction.proof` stages the app in SimSpace, opens it through Playwright, captures before/after screenshots, sends non-destructive input, checks console errors, and writes a normalized report.
+Runtime environments, scenarios, SimSpace runs, screenshots, and reports are local data under `.nexus-simulator/` or `.simspaces/`. They are ignored by Git. Public-safe scenario examples live in [`examples/`](./examples/).
 
-Scenario path:
+## Agent Guidance
 
-```bash
-node ./src/cli.js app detect <path>
-node ./src/cli.js app attach <env> <path>
-node ./src/cli.js scenario check <env> <scenario> --simtime playwright
-node ./src/cli.js simspace run <env> <scenario> --simtime playwright
-```
+Coding agents should read [`AGENTS.md`](./AGENTS.md), [`NexusSimulator-V1/memory.md`](./NexusSimulator-V1/memory.md), and [`.agent/start-here.md`](./.agent/start-here.md).
 
-Or use the shortcut:
+## CDN Use
 
-```bash
-node ./src/cli.js validate <env> <scenario> --simtime playwright
-```
+jsDelivr can distribute repository and npm package files for documentation or agent discovery. It does not execute the Node CLI, Playwright, or SimSpace; those run on a local machine or server.
 
-`validate` runs a capability check first, then runs the scenario inside SimSpace and prints the report path.
+## License
 
-## Daily Commands
-
-```bash
-node ./src/cli.js app detect <path>
-node ./src/cli.js app attach <env> <path>
-node ./src/cli.js app smoke <env>
-node ./src/cli.js tools
-node ./src/cli.js tools inspect interaction.proof
-node ./src/cli.js validate <path> --tool interaction.proof
-node ./src/cli.js report summary <run-id>
-node ./src/cli.js scenario list <env>
-node ./src/cli.js scenario show <env> <scenario>
-node ./src/cli.js scenario check <env> <scenario> --simtime playwright
-node ./src/cli.js simspace run <env> <scenario> --simtime playwright
-node ./src/cli.js simtime list
-node ./src/cli.js simtime inspect playwright
-```
-
-Use `node ./src/cli.js --help-all` for advanced factory, asset-pack, itch, chunked SimSpace, and raw scenario commands.
-
-## Safety Rule
-
-Prefer `simspace run` or `validate` for app validation.
-
-`scenario run` is the raw direct runner. It can touch the attached app path and should be used only when direct source-tree execution is intentional.
-
-## Project Layout
-
-```txt
-NexusSimulator-V1/
-  src/
-    cli.js                 CLI entrypoint
-    runtime.js             env/scenario storage and replay
-    actions.js             shared CLI/RPC-ready action registry
-    tool-catalog.js        user/agent-facing domain tool manifests
-    report-service.js      SimSpace report readers
-    simtimes.js            simtime registry
-    playwright-simtime.js  browser surface
-    file-simtime.js        filesystem surface
-    human-interaction-simtime.js
-    simspace.js            disposable staged run layer
-  .nexus-simulator/
-    envs/                  app/environment records
-    scenarios/             append-only JSONL workflows
-```
-
-Generated run artifacts are ignored from Git:
-
-```txt
-NexusSimulator-V1/.simspaces/
-NexusSimulator-V1/.nexus-simulator/artifacts/
-NexusSimulator-V1/.nexus-simulator/factory-runs/
-NexusSimulator-V1/.nexus-simulator/asset-packs/
-```
+MIT. See [`LICENSE`](./LICENSE).

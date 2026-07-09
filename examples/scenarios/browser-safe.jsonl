@@ -1,0 +1,8 @@
+{"command":"startServer","args":{"timeoutMs":10000}}
+{"command":"openPage","args":{}}
+{"command":"waitForSelector","args":{"selector":"body","timeoutMs":10000}}
+{"command":"assertFrameRendered","args":{}}
+{"command":"captureScreenshot","args":{"name":"browser-safe-proof.png"}}
+{"command":"assertNoConsoleErrors","args":{}}
+{"command":"getConsoleLogs","args":{}}
+{"command":"stopServer","args":{}}

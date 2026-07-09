@@ -1,16 +1,39 @@
 {
   "name": "nexus-simulator",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Scenario replay CLI for safe app validation through interaction-surface simtimes and disposable SimSpace runs.",
-  "private": true,
-  "license": "UNLICENSED",
+  "private": false,
+  "license": "MIT",
+  "author": "Luminary Labs",
   "type": "module",
   "bin": {
     "nexus-sim": "./src/cli.js"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/LuminaryLabs-Dev/NexusSimulator.git"
+    "url": "https://github.com/LuminaryLabs-Dev/NexusSimulator.git",
+    "directory": "NexusSimulator-V1"
+  },
+  "homepage": "https://github.com/LuminaryLabs-Dev/NexusSimulator#readme",
+  "bugs": {
+    "url": "https://github.com/LuminaryLabs-Dev/NexusSimulator/issues"
+  },
+  "keywords": [
+    "agent",
+    "automation",
+    "playwright",
+    "sandbox",
+    "simulation",
+    "testing"
+  ],
+  "files": [
+    "src/",
+    "profiles/",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
   },
   "engines": {
     "node": ">=18"
@@ -18,9 +41,12 @@
   "scripts": {
     "start": "node ./src/cli.js",
     "help": "node ./src/cli.js --help",
-    "help:all": "node ./src/cli.js --help-all"
+    "help:all": "node ./src/cli.js --help-all",
+    "check": "node --check ./src/cli.js",
+    "smoke": "node ./src/cli.js --help-all",
+    "prepublishOnly": "npm run check && npm run smoke"
   },
-  "devDependencies": {
+  "dependencies": {
     "playwright": "^1.60.0",
     "three": "^0.180.0"
   }
