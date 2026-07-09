@@ -10,32 +10,7 @@ The original project stays untouched by default. NexusSimulator stages it in a S
 
 ## Install
 
-```bash
-npm install --global nexus-simulator@0.0.1
-npx playwright install chromium
-```
-
-Node.js 18 or newer is required.
-
-## Quick Start
-
-Validate a static HTML, canvas, Three.js, or detected Vite application:
-
-```bash
-nexus-sim validate <path> --tool interaction.proof
-```
-
-Inspect the resulting evidence:
-
-```bash
-nexus-sim report summary <run-id>
-nexus-sim report artifacts <run-id>
-nexus-sim report console <run-id>
-```
-
-`interaction.proof` opens the staged application with Playwright, captures before/after screenshots, sends non-destructive input, checks responsiveness and console errors, and writes a normalized report.
-
-## Source Install
+The public source release is live. npm publication is prepared and awaiting registry authentication; use the source install until the package appears on npm.
 
 ```bash
 git clone https://github.com/LuminaryLabs-Dev/NexusSimulator.git
@@ -44,6 +19,32 @@ npm install
 npx playwright install chromium
 node ./src/cli.js --help
 ```
+
+Node.js 18 or newer is required.
+
+After registry publication:
+
+```bash
+npm install --global nexus-simulator@0.0.1
+```
+
+## Quick Start
+
+Validate a static HTML, canvas, Three.js, or detected Vite application:
+
+```bash
+node ./src/cli.js validate <path> --tool interaction.proof
+```
+
+Inspect the resulting evidence:
+
+```bash
+node ./src/cli.js report summary <run-id>
+node ./src/cli.js report artifacts <run-id>
+node ./src/cli.js report console <run-id>
+```
+
+`interaction.proof` opens the staged application with Playwright, captures before/after screenshots, sends non-destructive input, checks responsiveness and console errors, and writes a normalized report.
 
 ## Core Model
 

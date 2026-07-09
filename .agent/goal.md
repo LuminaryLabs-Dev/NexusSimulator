@@ -18,3 +18,9 @@ Publish NexusSimulator `0.0.1` as a clean open-source Node CLI.
 ## Next Goal
 
 Build `0.0.2` around multi-environment execution and RPC/agent access.
+
+## Release State
+
+- GitHub source and the `0.0.1` jsDelivr branch URL are public.
+- npm metadata and package proof pass.
+- npm publication is waiting for registry authentication on the release machine.
