@@ -4,11 +4,13 @@ import { resolve } from "node:path";
 export const factoryProfileSchemaVersion = "nexus.factory-profile.v1";
 
 const baseFactoryNames = ["LeafFactory", "TreeFactory", "FoliagePatchFactory", "ForestFactory"];
+const threeOnlyFactoryNames = ["TerrainFactory", "SceneFactory"];
 const factoryNames = [
   ...baseFactoryNames,
   ...baseFactoryNames.map((factoryName) => `${factoryName}2D`),
+  ...threeOnlyFactoryNames,
 ];
-const spawnSlotNames = new Set(["patchPoints", "treePoints", "groundLeafPoints", "leafPoints"]);
+const spawnSlotNames = new Set(["terrainRoot", "forestRoot", "patchPoints", "treePoints", "groundLeafPoints", "leafPoints"]);
 const allowedSelectionModes = new Set(["same", "cycle", "weighted"]);
 
 function isObject(value) {
@@ -54,6 +56,7 @@ function baseFactoryName(factoryName) {
 
 function alignFactoryToParent(parentFactoryName, childFactoryName) {
   const baseName = baseFactoryName(childFactoryName);
+  if (threeOnlyFactoryNames.includes(baseName)) return baseName;
   if (!baseFactoryNames.includes(baseName)) return childFactoryName;
   return is2DFactory(parentFactoryName) ? `${baseName}2D` : baseName;
 }
@@ -398,4 +401,3 @@ export function resolveSpawnSlots(context, call, slotName, generatedAnchors = []
   });
   return spawns;
 }
-

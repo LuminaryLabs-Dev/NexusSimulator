@@ -1,0 +1,285 @@
+{
+  "schemaVersion": "nexus.forest-showcase.v1",
+  "seed": "worldfactory-forest-003",
+  "title": "Nexus Simulator",
+  "subtitle": "WorldFactory-Harness",
+  "projectName": "Everglen Forest",
+  "defaultWorldType": "forest",
+  "worldTypes": {
+    "forest": {
+      "label": "Everglen Forest",
+      "skyTop": "#6b9b91",
+      "skyBottom": "#22352c",
+      "fog": "#17231d",
+      "terrainLow": "#304f42",
+      "terrainMid": "#496b4d",
+      "terrainHigh": "#61785a",
+      "river": "#4c9ca5",
+      "detail": "#587c4f",
+      "sun": "#ffd59c"
+    },
+    "desert": {
+      "label": "Desert Oasis",
+      "skyTop": "#7da6b2",
+      "skyBottom": "#d1a86f",
+      "fog": "#8b7353",
+      "terrainLow": "#a97845",
+      "terrainMid": "#c49a62",
+      "terrainHigh": "#dfbd82",
+      "river": "#3c9eaa",
+      "detail": "#8f7943",
+      "sun": "#ffe0a0"
+    },
+    "alpine": {
+      "label": "Alpine Valley",
+      "skyTop": "#6d8fac",
+      "skyBottom": "#d4e5e7",
+      "fog": "#9eb4b4",
+      "terrainLow": "#405e52",
+      "terrainMid": "#6d8170",
+      "terrainHigh": "#d9e3de",
+      "river": "#70b9ca",
+      "detail": "#54705e",
+      "sun": "#f3f1df"
+    },
+    "volcanic": {
+      "label": "Volcanic Basin",
+      "skyTop": "#4b3433",
+      "skyBottom": "#171716",
+      "fog": "#2b211f",
+      "terrainLow": "#1f2221",
+      "terrainMid": "#343934",
+      "terrainHigh": "#615247",
+      "river": "#e05b2a",
+      "detail": "#303731",
+      "sun": "#ff9a61"
+    }
+  },
+  "defaultWorldStructure": "bounded",
+  "worldStructures": {
+    "infinite": {
+      "label": "Infinite World",
+      "dimensions": 3,
+      "coordinateModel": "origin-rebased-continuous",
+      "parameters": { "streamingRadius": 6, "originRebasing": true },
+      "guide": { "kind": "grid", "size": 18, "color": "#72c7e8" },
+      "requirements": [
+        { "path": "dimensions", "operator": "equals", "value": 3, "label": "Three spatial dimensions are declared" },
+        { "path": "parameters.streamingRadius", "operator": "min", "value": 1, "label": "Streaming radius is positive" },
+        { "path": "parameters.originRebasing", "operator": "equals", "value": true, "label": "Origin rebasing is enabled" }
+      ]
+    },
+    "patched": {
+      "label": "Patched World",
+      "dimensions": 3,
+      "coordinateModel": "stitched-patches",
+      "parameters": { "patchSize": 28, "activePatchRadius": 2, "seamStitching": true },
+      "guide": { "kind": "patch-grid", "size": 12, "color": "#68d391" },
+      "requirements": [
+        { "path": "parameters.patchSize", "operator": "min", "value": 1, "label": "Patch size is positive" },
+        { "path": "parameters.activePatchRadius", "operator": "min", "value": 1, "label": "Active patch radius is positive" },
+        { "path": "parameters.seamStitching", "operator": "equals", "value": true, "label": "Patch seams are stitched" }
+      ]
+    },
+    "bounded": {
+      "label": "Bounded World",
+      "dimensions": 3,
+      "coordinateModel": "cartesian-bounds",
+      "parameters": { "bounds": { "x": 28, "y": 12, "z": 20 }, "boundaryCollision": true },
+      "guide": { "kind": "box", "size": 8, "color": "#f1b85b" },
+      "requirements": [
+        { "path": "parameters.bounds.x", "operator": "min", "value": 1, "label": "World width is positive" },
+        { "path": "parameters.bounds.y", "operator": "min", "value": 1, "label": "World height is positive" },
+        { "path": "parameters.bounds.z", "operator": "min", "value": 1, "label": "World depth is positive" },
+        { "path": "parameters.boundaryCollision", "operator": "equals", "value": true, "label": "Boundary collision is enabled" }
+      ]
+    },
+    "spherical": {
+      "label": "Spherical World",
+      "dimensions": 3,
+      "coordinateModel": "radial-surface",
+      "parameters": { "radius": 14, "closedSurface": true, "gravityMode": "radial" },
+      "guide": { "kind": "sphere", "size": 4.6, "color": "#72c7e8" },
+      "requirements": [
+        { "path": "parameters.radius", "operator": "min", "value": 1, "label": "Sphere radius is positive" },
+        { "path": "parameters.closedSurface", "operator": "equals", "value": true, "label": "World surface is closed" },
+        { "path": "parameters.gravityMode", "operator": "matches", "value": "^radial$", "label": "Gravity follows the radial frame" }
+      ]
+    },
+    "full-spatial": {
+      "label": "Full Spatial World",
+      "dimensions": 3,
+      "coordinateModel": "free-3d-volume",
+      "parameters": { "freePlacement": true, "spatialIndex": "octree", "gravityMode": "configurable" },
+      "guide": { "kind": "axes", "size": 5.5, "color": "#d9ef77" },
+      "requirements": [
+        { "path": "dimensions", "operator": "equals", "value": 3, "label": "Full XYZ space is enabled" },
+        { "path": "parameters.freePlacement", "operator": "equals", "value": true, "label": "Free three-dimensional placement is enabled" },
+        { "path": "parameters.spatialIndex", "operator": "matches", "value": "^(octree|bvh|grid-3d)$", "label": "A supported spatial index is configured" }
+      ]
+    },
+    "toroidal": {
+      "label": "Toroidal World",
+      "dimensions": 3,
+      "coordinateModel": "wrapped-volume",
+      "parameters": { "wrapAxes": "xz", "majorRadius": 12, "minorRadius": 4 },
+      "guide": { "kind": "torus", "size": 4.8, "color": "#d996ff" },
+      "requirements": [
+        { "path": "parameters.wrapAxes", "operator": "matches", "value": "^(x|z|xz|xyz)$", "label": "At least one world axis wraps" },
+        { "path": "parameters.majorRadius", "operator": "min", "value": 1, "label": "Major radius is positive" },
+        { "path": "parameters.minorRadius", "operator": "min", "value": 0.1, "label": "Minor radius is positive" }
+      ]
+    },
+    "layered": {
+      "label": "Layered World",
+      "dimensions": 3,
+      "coordinateModel": "stacked-spaces",
+      "parameters": { "layers": 4, "portalRouting": true, "layerSpacing": 6 },
+      "guide": { "kind": "layers", "size": 5, "color": "#ff9b79" },
+      "requirements": [
+        { "path": "parameters.layers", "operator": "min", "value": 2, "label": "At least two spatial layers exist" },
+        { "path": "parameters.portalRouting", "operator": "equals", "value": true, "label": "Cross-layer routing is enabled" },
+        { "path": "parameters.layerSpacing", "operator": "min", "value": 0.1, "label": "Layer spacing is positive" }
+      ]
+    }
+  },
+  "generation": {
+    "confidenceThreshold": 0.82,
+    "maxAttempts": 6,
+    "algorithms": {
+      "terrainPatch": ["terraced-grid", "ridged-noise", "cellular-shelf"],
+      "oak": ["radial-branch", "space-colonized", "crown-biased"],
+      "birch": ["cluster-rhythm", "radial-branch", "canopy-gap"],
+      "pine": ["layered-cone", "whorled-branch", "silhouette-stack"],
+      "willow": ["droop-field", "radial-branch", "bank-lean"],
+      "boulders": ["voronoi-rock", "faceted-radial", "erosion-cluster"],
+      "crystals": ["radial-spire", "fractured-cluster", "growth-axis"],
+      "shrine": ["post-and-lintel", "radial-sanctum", "stacked-frame"],
+      "arch": ["voussoir-arc", "spline-block", "weathered-span"],
+      "bridge": ["catenary-plank", "beam-span", "stepped-crossing"],
+      "waterfall": ["strata-cascade", "erosion-channel", "tiered-fall"],
+      "mushrooms": ["ring-poisson", "radial-cluster", "mycelial-band"],
+      "fireflies": ["curl-swarm", "boid-cloud", "noise-drift"],
+      "lantern": ["frame-lattice", "wound-cage", "cantilever-light"],
+      "monolith": ["rune-slab", "faceted-pillar", "layered-seal"]
+    },
+    "failureFilters": [
+      { "id": "custom-triangle-topology", "metric": "customTriangleTopology", "operator": "equals", "value": 1 },
+      { "id": "consistent-winding", "metric": "windingConsistency", "operator": "min", "value": 0.968 },
+      { "id": "normal-consistency", "metric": "normalConsistency", "operator": "min", "value": 0.958 },
+      { "id": "degenerate-triangles", "metric": "degenerateTriangleRatio", "operator": "max", "value": 0.016 },
+      { "id": "lighting-readability", "metric": "lightingReadability", "operator": "min", "value": 0.7 },
+      { "id": "placement-clearance", "metric": "placementClearance", "operator": "min", "value": 0.67 },
+      { "id": "silhouette-readability", "metric": "silhouetteReadability", "operator": "min", "value": 0.69 },
+      { "id": "performance-budget", "metric": "performanceBudget", "operator": "min", "value": 0.73 }
+    ],
+    "massiveWorld": {
+      "sectorRadius": 2,
+      "sectorSpacing": 26,
+      "assetDensity": 0.42,
+      "flightHeight": 10,
+      "flightRadius": 48
+    },
+    "nexusTerrain": {
+      "id": "everglen-streamed-terrain",
+      "chunkSize": 24,
+      "activeRadius": 1,
+      "preloadRadius": 2,
+      "unloadRadius": 3,
+      "resolution": 20,
+      "amplitude": 2.4,
+      "frequency": 0.035,
+      "erosionIterations": 4,
+      "erosionStrength": 0.16,
+      "smoothing": { "extraPasses": 1, "slopeLimit": 0.82 },
+      "snapSize": 4,
+      "horizonRadius": 1400,
+      "rings": 112,
+      "segments": 224,
+      "camera": { "trailDistance": 18, "lateralOffset": 5, "height": 9, "lookAhead": 12 },
+      "seamValidation": { "heightEpsilon": 0.00001, "normalEpsilon": 0.16 },
+      "materialColors": { "grass": "#496b4d", "rock": "#68716b", "moss": "#587c4f" },
+      "flightPath": [
+        { "x": 0, "z": 0 },
+        { "x": 20, "z": 8 },
+        { "x": 44, "z": 18 },
+        { "x": 68, "z": 8 },
+        { "x": 92, "z": -8 }
+      ],
+      "objectProfiles": [
+        { "id": "rock-default", "kind": "rock", "sourceUpAxis": "Y", "originPolicy": "bottom-center", "pivotPolicy": "root-bottom", "scalePolicy": { "mode": "fit-height-range", "defaultHeight": 2 }, "groundingPolicy": { "rootSink": 0.18 } },
+        { "id": "structure-default", "kind": "structure", "sourceUpAxis": "Y", "originPolicy": "bottom-center", "pivotPolicy": "foundation-bottom", "scalePolicy": { "mode": "unit" }, "groundingPolicy": { "rootSink": 0.04 } },
+        { "id": "effect-default", "kind": "effect", "sourceUpAxis": "Y", "originPolicy": "center", "pivotPolicy": "center", "scalePolicy": { "mode": "unit" } }
+      ],
+      "groundingProfiles": {
+        "rootSink": 0.06,
+        "maxSlope": 0.74,
+        "byKind": {
+          "structure": { "rootSink": 0.04, "maxSlope": 0.46, "normalAlign": 0.08 },
+          "effect": { "rootSink": 0, "maxSlope": 1, "normalAlign": 0 }
+        }
+      },
+      "kindByType": {
+        "terrainPatch": "object",
+        "oak": "tree",
+        "birch": "tree",
+        "pine": "tree",
+        "willow": "tree",
+        "boulders": "rock",
+        "crystals": "rock",
+        "shrine": "structure",
+        "arch": "structure",
+        "bridge": "structure",
+        "waterfall": "effect",
+        "mushrooms": "object",
+        "fireflies": "effect",
+        "lantern": "structure",
+        "monolith": "structure"
+      }
+    }
+  },
+  "durationSeconds": 30,
+  "fps": 30,
+  "timeline": {
+    "introEnd": 1.5,
+    "testStart": 1.2,
+    "testEnd": 15,
+    "transitionEnd": 17.2,
+    "worldStart": 16.8,
+    "worldEnd": 27,
+    "completionStart": 27
+  },
+  "guidance": {
+    "source": "Codex",
+    "instruction": "Build, view, and validate every forest asset before committing it to the world.",
+    "credit": "Planned with ChatGPT. Built by Sol, Terra, and Luna."
+  },
+  "harness": {
+    "name": "WorldFactory-Harness",
+    "runtime": "codex",
+    "model": "gpt-5.4",
+    "strategy": "parallel-plan-cross-review-bounded-revision-serialized-commits"
+  },
+  "agents": [
+    { "id": "terra", "name": "Terra", "role": "Terrain, flora, and biome architect", "startsAt": 1.2, "color": "#68d391" },
+    { "id": "sol", "name": "Sol", "role": "Lighting, water, and atmosphere architect", "startsAt": 1.9, "color": "#f1b85b" },
+    { "id": "luna", "name": "Luna", "role": "Structures, interaction, and validation architect", "startsAt": 2.6, "color": "#72c7e8" }
+  ],
+  "steps": [
+    { "id": "terrain-patch", "type": "terrainPatch", "agent": "terra", "label": "Forest Terrain", "instruction": "Terra shapes a traversable forest floor.", "position": [0, 0, 0], "color": "#769c62" },
+    { "id": "ancient-oak", "type": "oak", "agent": "terra", "label": "Ancient Oak", "instruction": "Terra grows a hero-scale ancient oak.", "position": [-5.5, 0.2, -2.7], "color": "#4f8a54" },
+    { "id": "silver-birch", "type": "birch", "agent": "terra", "label": "Silver Birch Stand", "instruction": "Terra adds a readable silver birch stand.", "position": [4.7, 0.15, -3.3], "color": "#8ebc72" },
+    { "id": "pine-cluster", "type": "pine", "agent": "terra", "label": "Pine Cluster", "instruction": "Terra establishes the evergreen silhouette.", "position": [-6.6, 0.1, 3.8], "color": "#28624a" },
+    { "id": "river-willow", "type": "willow", "agent": "terra", "label": "River Willow", "instruction": "Terra anchors the riverbank with willows.", "position": [6, 0.05, -1], "color": "#6f9652" },
+    { "id": "moss-boulders", "type": "boulders", "agent": "terra", "label": "Moss Boulders", "instruction": "Terra grounds the biome with mossed stone.", "position": [-2.8, 0.2, 4.6], "color": "#7f9562" },
+    { "id": "moon-crystals", "type": "crystals", "agent": "sol", "label": "Moon Crystals", "instruction": "Sol places a cool luminous landmark.", "position": [5.2, 0.15, -3.1], "color": "#73d7dc" },
+    { "id": "forest-shrine", "type": "shrine", "agent": "luna", "label": "Forest Shrine", "instruction": "Luna assembles an interactive forest shrine.", "position": [0.5, 0.15, -5], "color": "#d9a75d" },
+    { "id": "stone-arch", "type": "arch", "agent": "luna", "label": "Stone Arch", "instruction": "Luna frames the path with an ancient arch.", "position": [-2.2, 0.15, -3.5], "color": "#9ba397" },
+    { "id": "river-bridge", "type": "bridge", "agent": "luna", "label": "River Bridge", "instruction": "Luna connects both sides of the forest route.", "position": [0.6, 0.35, 2.4], "yaw": 1.5708, "color": "#a56f43" },
+    { "id": "rock-waterfall", "type": "waterfall", "agent": "sol", "label": "Rock Waterfall", "instruction": "Sol introduces moving water and mist.", "position": [0, 0.2, -6.3], "color": "#79bfd1" },
+    { "id": "mushroom-ring", "type": "mushrooms", "agent": "terra", "label": "Mushroom Ring", "instruction": "Terra adds a detailed forest-floor landmark.", "position": [2.8, 0.1, -1.4], "color": "#d86c52" },
+    { "id": "firefly-swarm", "type": "fireflies", "agent": "sol", "label": "Firefly Swarm", "instruction": "Sol adds living atmospheric motion.", "position": [1.8, 1.3, 1.4], "color": "#d9ef77" },
+    { "id": "wayfinder-lantern", "type": "lantern", "agent": "sol", "label": "Wayfinder Lantern", "instruction": "Sol lights the primary path through the grove.", "position": [-1.7, 0.15, 1.6], "color": "#f0b85f" },
+    { "id": "validation-monolith", "type": "monolith", "agent": "luna", "label": "Validation Monolith", "instruction": "Luna seals the world after all checks pass.", "position": [0, 0.15, 0], "color": "#71d3b0" }
+  ]
+}

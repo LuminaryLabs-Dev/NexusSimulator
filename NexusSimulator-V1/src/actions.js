@@ -4,6 +4,11 @@ import { detectApp } from "./app-detection.js";
 import { checkScenario } from "./runtime.js";
 import { runEventsInSimSpace, runScenarioInSimSpace } from "./simspace.js";
 import { inspectTool, listTools, toolForMedium } from "./tool-catalog.js";
+export { runSceneBuildProofAction } from "./scene-build-proof.js";
+export { runAgentShowcaseAction } from "./agent-showcase.js";
+export { runWorldEditorSessionAction } from "./world-editor-session.js";
+export { runKitContractProof as runKitContractProofAction } from "./kit-contract-proof.js";
+export { runKitRuntimeProof as runKitRuntimeProofAction } from "./kit-runtime-proof.js";
 
 function checkNames(report) {
   return report.state?.checks ?? report.output?.checks ?? [];
@@ -64,11 +69,13 @@ function buildInteractionProofEvents(detection) {
       },
     },
     { command: "startServer", args: { timeoutMs: detection.launchMode === "dev-server" ? 30000 : 10000 } },
+    { command: "recordTrace", args: { name: "interaction-proof-trace.zip" } },
+    { command: "recordVideo", args: { name: "interaction-proof.webm" } },
     { command: "openPage", args: {} },
     { command: "waitForSelector", args: { selector: "body", timeoutMs: 10000 } },
     { command: "assertFrameRendered", args: {} },
     ...(canvasLike ? [{ command: "assertCanvasExists", args: {} }] : []),
-    { command: "captureScreenshot", args: { name: "interaction-proof-before.png" } },
+    { command: "captureScreenshot", args: { name: "interaction-proof-before.png", fullPage: false } },
     { command: "getConsoleLogs", args: {} },
     { command: "moveMouse", args: { x: 64, y: 64 } },
     { command: "wheel", args: { deltaX: 0, deltaY: 120 } },
@@ -76,7 +83,7 @@ function buildInteractionProofEvents(detection) {
     { command: "pressKey", args: { key: "Escape" } },
     { command: "wait", args: { ms: 250 } },
     { command: "assertStillResponsive", args: {} },
-    { command: "captureScreenshot", args: { name: "interaction-proof-after.png" } },
+    { command: "captureScreenshot", args: { name: "interaction-proof-after.png", fullPage: false } },
     { command: "assertNoConsoleErrors", args: {} },
     { command: "getConsoleLogs", args: {} },
     { command: "summarizeSession", args: {} },
@@ -89,7 +96,10 @@ function normalizeInteractionProof(result, tool, interactionMode) {
   const reportArtifacts = artifacts(report);
   const before = fileByName(reportArtifacts, "interaction-proof-before.png");
   const after = fileByName(reportArtifacts, "interaction-proof-after.png");
+  const trace = fileByName(reportArtifacts, "interaction-proof-trace.zip");
+  const video = fileByName(reportArtifacts, "interaction-proof.webm");
   const visualChanged = filesDiffer(before, after);
+  const recordingComplete = Boolean(trace && video);
   const errors = consoleErrors(report);
   const failed = failedStep(report);
   const rendered = hasPassedCheck(report, "frameRendered") && hasPassedCheck(report, "pageOpened");
@@ -100,12 +110,12 @@ function normalizeInteractionProof(result, tool, interactionMode) {
   let status = "inconclusive";
   if (report.error || failed || errors.length > 0 || report.status === "failed") {
     status = "failed";
-  } else if (rendered && inputDelivered && visualChanged) {
+  } else if (rendered && inputDelivered && visualChanged && recordingComplete) {
     status = "passed";
   }
 
   const summary = status === "passed"
-    ? "Rendered, accepted safe input, changed visual state, and reported no console errors."
+    ? "Rendered, accepted safe input, changed visual state, retained trace/video, and reported no console errors."
     : status === "failed"
       ? "Interaction proof failed; inspect failedStep, consoleErrors, and artifacts."
       : "Rendered and accepted safe input, but auto-safe mode did not prove a visual or DOM response.";
@@ -122,6 +132,7 @@ function normalizeInteractionProof(result, tool, interactionMode) {
     proof: {
       interactionMode,
       inputDelivered,
+      recordingComplete,
       rendered,
       visualChanged,
     },

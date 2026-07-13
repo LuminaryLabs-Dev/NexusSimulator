@@ -34,6 +34,7 @@ export const playwrightSupports = [
   "assertSmoothFrameTelemetry",
   "assertNoConsoleErrors",
   "captureScreenshot",
+  "recordTrace",
   "recordVideo",
   "getConsoleLogs",
   "stopServer",
@@ -260,6 +261,7 @@ export function createPlaywrightAdapter(context = {}) {
   let browser = null;
   let browserContext = null;
   let page = null;
+  let pendingTraceArtifact = null;
   let pendingVideoArtifact = null;
   let serverHandle = null;
   let startedAt = now();
@@ -303,6 +305,20 @@ export function createPlaywrightAdapter(context = {}) {
 
   async function closeRuntime() {
     let video = null;
+    let traceError = null;
+    if (pendingTraceArtifact && browserContext) {
+      const artifactDir = resolve(state.artifactDir);
+      mkdirSync(artifactDir, { recursive: true });
+      const destination = join(artifactDir, pendingTraceArtifact.name);
+      try {
+        await browserContext.tracing.stop({ path: destination });
+        state.artifacts.push(destination);
+        check("traceRecorded", existsSync(destination), destination);
+      } catch (error) {
+        traceError = error;
+      }
+      pendingTraceArtifact = null;
+    }
     if (page) {
       video = page.video?.() ?? null;
       await page.close().catch(() => {});
@@ -332,6 +348,7 @@ export function createPlaywrightAdapter(context = {}) {
     }
     state.browserOpen = false;
     state.server = null;
+    if (traceError) throw traceError;
   }
 
   async function reset() {
@@ -641,6 +658,19 @@ export function createPlaywrightAdapter(context = {}) {
         };
         state.sessionSummary += `recordVideo name=${pendingVideoArtifact.name} durationMs=${pendingVideoArtifact.durationMs} fps=${args.fps ?? "default"} captureMode=${args.captureMode ?? "realtime"}\n`;
         check("videoRecordingArmed", true, `${pendingVideoArtifact.name} durationMs=${pendingVideoArtifact.durationMs}`);
+        return;
+      }
+      case "recordTrace": {
+        await ensureBrowser();
+        if (pendingTraceArtifact) throw new Error("Playwright trace recording is already active.");
+        pendingTraceArtifact = { name: args.name ?? "playwright-trace.zip" };
+        await browserContext.tracing.start({
+          screenshots: args.screenshots !== false,
+          snapshots: args.snapshots !== false,
+          sources: args.sources !== false,
+        });
+        state.sessionSummary += `recordTrace name=${pendingTraceArtifact.name}\n`;
+        check("traceRecordingArmed", true, pendingTraceArtifact.name);
         return;
       }
       case "getConsoleLogs":

@@ -45,6 +45,11 @@ import { runScenarioInSimSpaceChunked } from "./simspace.js";
 import {
   inspectToolAction,
   listToolActions,
+  runAgentShowcaseAction,
+  runWorldEditorSessionAction,
+  runKitContractProofAction,
+  runKitRuntimeProofAction,
+  runSceneBuildProofAction,
   validateScenarioAction,
   validateTargetAction,
 } from "./actions.js";
@@ -121,6 +126,9 @@ function usageAll() {
     "  nexus-sim scenario check <env> <scenario> [--simtime <id>]",
     "  nexus-sim scenario run <env> <scenario> [--simtime <id>]",
     "  nexus-sim factory list",
+    "  nexus-sim tools run scene.build-proof --profile <path> [--run-id <id>] [--viewport 1280x720] [--fps 30]",
+    "  nexus-sim tools run scene.agent-showcase --profile <path> [--run-id <id>] [--viewport 1920x1080] [--fps 30] [--duration <seconds>] [--nexus-engine-root <path>] [--nexus-protokits-root <path>] [--use-codex] [--live-loop] [--output <path>]",
+    "  nexus-sim tools run scene.editor-session --profile <path> [--run-id <id>] [--viewport 1920x1080] [--duration 305] [--fps 24] [--capture-style human|direct] [--output <path>]",
     "  nexus-sim factory config validate <path>",
     "  nexus-sim factory init <run-id> --factory <FactoryName> --seed <seed> --profile <profile> [--theme <text>] [--settings <json>] [--config <path>]",
     "  nexus-sim factory run <run-id>",
@@ -293,6 +301,68 @@ async function main(argv) {
     const [id] = rest;
     if (!id) throw new Error("Usage: nexus-sim tools inspect <id>");
     printValue(inspectToolAction(id));
+    return;
+  }
+
+  if (scope === "tools" && verb === "run") {
+    const [toolId, ...toolArgs] = rest;
+    if (toolId === "kit.contract-proof") {
+      const inputPath = parseNamedOption(toolArgs, "--input");
+      const outputPath = parseNamedOption(toolArgs, "--output");
+      const runId = parseNamedOption(toolArgs, "--run-id");
+      const result = runKitContractProofAction({ inputPath, outputPath, runId });
+      printValue(result);
+      if (result.status !== "passed") process.exitCode = 1;
+      return;
+    }
+    if (toolId === "kit.runtime-proof") {
+      const manifestPath = parseNamedOption(toolArgs, "--manifest");
+      const outputPath = parseNamedOption(toolArgs, "--output");
+      const runId = parseNamedOption(toolArgs, "--run-id");
+      const result = await runKitRuntimeProofAction({ manifestPath, outputPath, runId });
+      printValue(result);
+      if (result.status !== "passed") process.exitCode = 1;
+      return;
+    }
+    if (toolId === "scene.agent-showcase") {
+      const profilePath = parseNamedOption(toolArgs, "--profile");
+      const runId = parseNamedOption(toolArgs, "--run-id");
+      const viewport = parseNamedOption(toolArgs, "--viewport") ?? "1920x1080";
+      const fps = parseNumberOption(toolArgs, "--fps", 30);
+      const duration = parseNumberOption(toolArgs, "--duration", null);
+      const outputPath = parseNamedOption(toolArgs, "--output");
+      const nexusEngineRoot = parseNamedOption(toolArgs, "--nexus-engine-root") ?? process.env.NEXUS_ENGINE_ROOT;
+      const nexusProtoKitsRoot = parseNamedOption(toolArgs, "--nexus-protokits-root") ?? process.env.NEXUS_PROTOKITS_ROOT;
+      const useCodex = toolArgs.includes("--use-codex");
+      const liveLoop = toolArgs.includes("--live-loop");
+      const result = await runAgentShowcaseAction({ duration, fps, liveLoop, nexusEngineRoot, nexusProtoKitsRoot, outputPath, profilePath, runId, useCodex, viewport });
+      printValue(result);
+      if (result.status !== "passed") process.exitCode = 1;
+      return;
+    }
+    if (toolId === "scene.editor-session") {
+      const profilePath = parseNamedOption(toolArgs, "--profile");
+      const runId = parseNamedOption(toolArgs, "--run-id");
+      const viewport = parseNamedOption(toolArgs, "--viewport") ?? "1920x1080";
+      const duration = parseNumberOption(toolArgs, "--duration", 305);
+      const fps = parseNumberOption(toolArgs, "--fps", 24);
+      const captureStyle = parseNamedOption(toolArgs, "--capture-style") ?? "human";
+      const outputPath = parseNamedOption(toolArgs, "--output");
+      const result = await runWorldEditorSessionAction({ captureStyle, duration, fps, outputPath, profilePath, runId, viewport });
+      printValue(result);
+      if (result.status !== "passed") process.exitCode = 1;
+      return;
+    }
+    if (toolId !== "scene.build-proof") {
+      throw new Error("Usage: nexus-sim tools run <kit.contract-proof|kit.runtime-proof|scene.build-proof|scene.agent-showcase|scene.editor-session> [...options]");
+    }
+    const profilePath = parseNamedOption(toolArgs, "--profile");
+    const runId = parseNamedOption(toolArgs, "--run-id");
+    const viewport = parseNamedOption(toolArgs, "--viewport") ?? "1280x720";
+    const fps = parseNumberOption(toolArgs, "--fps", 30);
+    const result = await runSceneBuildProofAction({ fps, profilePath, runId, viewport });
+    printValue(result);
+    if (result.status !== "passed") process.exitCode = 1;
     return;
   }
 

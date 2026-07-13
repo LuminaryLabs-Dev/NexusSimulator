@@ -1,0 +1,70 @@
+{
+  "schemaVersion": "nexus.factory-profile.v1",
+  "factory": "SceneFactory",
+  "seed": "nexus-grove-002",
+  "profile": "scene.procedural-grove",
+  "title": "Procedural Grove",
+  "theme": "deterministic procedural terrain and mixed woodland scene proof",
+  "settings": {
+    "branchDepth": 4,
+    "branchFanout": 3,
+    "buildDurationSeconds": 4,
+    "fanoutBudget": 1500,
+    "forestFanoutBudget": 1500,
+    "leafCountBudget": 24,
+    "maxDepth": 8,
+    "patchCount": 3,
+    "proofMinTerrainVertices": 2401,
+    "proofMinTreeCount": 18,
+    "recordingFps": 30,
+    "speciesList": ["oak", "birch", "pine", "willow"],
+    "terrainMaxHeight": 3.2,
+    "terrainOctaves": 4,
+    "terrainResolution": 48,
+    "terrainSize": 28,
+    "treeCount": 18,
+    "treeMaxSlope": 0.62,
+    "treeMinSpacing": 1.65
+  },
+  "profiles": {
+    "terrain.procedural-grove": {
+      "factory": "TerrainFactory",
+      "settings": {
+        "terrainMaxHeight": 3.2,
+        "terrainOctaves": 4,
+        "terrainResolution": 48,
+        "terrainSize": 28
+      }
+    },
+    "forest.procedural-grove": {
+      "factory": "ForestFactory",
+      "settings": {
+        "branchDepth": 4,
+        "branchFanout": 3,
+        "leafCountBudget": 24,
+        "patchCount": 3,
+        "speciesList": ["oak", "birch", "pine", "willow"],
+        "speciesSelection": "cycle",
+        "treesPerPatch": 6
+      }
+    }
+  },
+  "spawnSlots": {
+    "terrainRoot": {
+      "factory": "TerrainFactory",
+      "selection": "same",
+      "profiles": ["terrain.procedural-grove"],
+      "points": [
+        { "id": "terrain", "seed": "nexus-grove-002:terrain" }
+      ]
+    },
+    "forestRoot": {
+      "factory": "ForestFactory",
+      "selection": "same",
+      "profiles": ["forest.procedural-grove"],
+      "points": [
+        { "id": "forest", "seed": "nexus-grove-002:forest" }
+      ]
+    }
+  }
+}

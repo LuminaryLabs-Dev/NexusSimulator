@@ -1,6 +1,6 @@
 {
   "name": "nexus-simulator",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Scenario replay CLI for safe app validation through interaction-surface simtimes and disposable SimSpace runs.",
   "private": false,
   "license": "MIT",

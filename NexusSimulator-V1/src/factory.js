@@ -22,6 +22,8 @@ import {
   validateFactoryConfig,
 } from "./factory-profiles.js";
 import { createHyperrealThreePreviewHtml } from "./factory-three-preview.js";
+import { createProceduralScenePreviewHtml } from "./factory-scene-preview.js";
+import { createSceneData, generateTerrainData } from "./scene-generation.js";
 import {
   createSpeciesCatalog,
   createTreeTopology,
@@ -35,9 +37,11 @@ const factoryRoot = join(rootDir, "factory-runs");
 const assetPackRoot = join(rootDir, "asset-packs");
 const minPassingScore = 80;
 const baseFactoryNames = ["LeafFactory", "TreeFactory", "FoliagePatchFactory", "ForestFactory"];
+const threeOnlyFactoryNames = ["TerrainFactory", "SceneFactory"];
 const factoryNames = [
   ...baseFactoryNames,
   ...baseFactoryNames.map((factoryName) => `${factoryName}2D`),
+  ...threeOnlyFactoryNames,
 ];
 const texturePng = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAG0lEQVR4nGP8z8AARLJgwiM3jGJgYJgBAA8dAglksR1vAAAAAElFTkSuQmCC",
@@ -161,6 +165,7 @@ function baseFactoryName(factoryName) {
 }
 
 function childFactoryName(parentFactoryName, childBaseName) {
+  if (threeOnlyFactoryNames.includes(childBaseName)) return childBaseName;
   return is2DFactory(parentFactoryName) ? `${childBaseName}2D` : childBaseName;
 }
 
@@ -893,6 +898,136 @@ function runForestFactory(ctx, call) {
   };
 }
 
+function runTerrainFactory(ctx, call) {
+  const terrain = generateTerrainData(call.seed, call.settings);
+  const terrainId = slug(call.callId);
+  const dataDir = join(ctx.root, "build", "data");
+  const fbxDir = join(ctx.root, "build", "fbx", "terrain");
+  ensureDir(dataDir);
+  ensureDir(fbxDir);
+  const dataPath = join(dataDir, `${terrainId}.json`);
+  const fbxPath = join(fbxDir, `${terrainId}.fbx`);
+  writeJson(dataPath, terrain);
+  const side = terrain.resolution + 1;
+  const points = terrain.heights.map((height, index) => ({
+    x: ((index % side) / terrain.resolution - 0.5) * terrain.size,
+    y: height,
+    z: (Math.floor(index / side) / terrain.resolution - 0.5) * terrain.size,
+  }));
+  writeFileSync(fbxPath, [
+    `; Seed: ${terrain.seed}`,
+    `; Resolution: ${terrain.resolution}`,
+    `; VertexCount: ${terrain.vertexCount}`,
+    `; TriangleCount: ${terrain.triangleCount}`,
+    createFbx(terrainId, `${call.profile} deterministic procedural terrain`, points),
+  ].join("\n"));
+  modulePacket(ctx, `${call.callId}-terrain-factory`, {
+    factory: call.factory,
+    maxHeight: terrain.maxHeight,
+    octaves: terrain.octaves,
+    profile: call.profile,
+    resolution: terrain.resolution,
+    seed: terrain.seed,
+    size: terrain.size,
+    triangleCount: terrain.triangleCount,
+    vertexCount: terrain.vertexCount,
+  });
+  return {
+    assets: { terrain: { ...terrain, dataPath, fbxPath } },
+    outputs: [dataPath, fbxPath],
+    stats: {
+      fbxCount: 1,
+      terrainCount: 1,
+      terrainTriangleCount: terrain.triangleCount,
+      terrainVertexCount: terrain.vertexCount,
+    },
+    terrain,
+  };
+}
+
+function runSceneFactory(ctx, call) {
+  const terrainCall = {
+    callId: `${slug(call.callId)}-terrain`,
+    depth: call.depth + 1,
+    factory: "TerrainFactory",
+    fanoutBudget: 1,
+    maxDepth: call.maxDepth,
+    parentCallId: call.callId,
+    profile: `${call.profile}.terrain`,
+    seed: `${call.seed}:terrain`,
+    settings: call.settings,
+    spawnId: "terrain",
+  };
+  const terrainSpawn = resolveSpawnSlots(
+    ctx.profileContext,
+    call,
+    "terrainRoot",
+    [{ id: "terrain" }],
+    [terrainCall],
+  )[0];
+  const terrainResult = invokeFactory(ctx, terrainSpawn.call.factory, terrainSpawn.call);
+
+  const forestCall = {
+    callId: `${slug(call.callId)}-forest`,
+    depth: call.depth + 1,
+    factory: "ForestFactory",
+    fanoutBudget: clampInt(call.settings.forestFanoutBudget ?? 1500, 80, 1500),
+    maxDepth: call.maxDepth,
+    parentCallId: call.callId,
+    profile: `${call.profile}.forest`,
+    seed: `${call.seed}:forest`,
+    settings: {
+      branchDepth: call.settings.branchDepth ?? 4,
+      branchFanout: call.settings.branchFanout ?? 3,
+      leafCountBudget: call.settings.leafCountBudget ?? 24,
+      patchCount: call.settings.patchCount ?? 3,
+      speciesList: call.settings.speciesList ?? ["oak", "birch", "pine", "willow"],
+      speciesSelection: "cycle",
+      treesPerPatch: Math.max(1, Math.round(Number(call.settings.treeCount ?? 18) / Math.max(1, Number(call.settings.patchCount ?? 3)))),
+    },
+    spawnId: "forest",
+  };
+  const forestSpawn = resolveSpawnSlots(
+    ctx.profileContext,
+    call,
+    "forestRoot",
+    [{ id: "forest" }],
+    [forestCall],
+  )[0];
+  const forestResult = invokeFactory(ctx, forestSpawn.call.factory, forestSpawn.call);
+
+  const terrain = terrainResult.terrain;
+  const scene = createSceneData(call.seed, terrain, {
+    ...call.settings,
+    treeCount: Number(call.settings.treeCount ?? forestResult.stats.treeCount ?? 18),
+  });
+  const dataDir = join(ctx.root, "build", "data");
+  ensureDir(dataDir);
+  const scenePath = join(dataDir, `${slug(call.callId)}-scene.json`);
+  writeJson(scenePath, scene);
+  modulePacket(ctx, `${call.callId}-scene-factory`, {
+    expectedHash: scene.expectedHash,
+    factory: call.factory,
+    forestCallId: forestSpawn.call.callId,
+    profile: call.profile,
+    seed: call.seed,
+    terrainCallId: terrainSpawn.call.callId,
+    terrainVertexCount: terrain.vertexCount,
+    treeCount: scene.treeCount,
+  });
+  return {
+    assets: {
+      forest: forestResult.assets,
+      scene,
+      terrain: terrainResult.assets.terrain,
+    },
+    outputs: [...terrainResult.outputs, ...forestResult.outputs, scenePath],
+    scene,
+    stats: mergeStats(terrainResult.stats, forestResult.stats, { sceneCount: 1 }),
+    terrain,
+  };
+}
+
 function executeFactory(ctx, call) {
   switch (baseFactoryName(call.factory)) {
     case "LeafFactory":
@@ -903,6 +1038,10 @@ function executeFactory(ctx, call) {
       return runFoliagePatchFactory(ctx, call);
     case "ForestFactory":
       return runForestFactory(ctx, call);
+    case "TerrainFactory":
+      return runTerrainFactory(ctx, call);
+    case "SceneFactory":
+      return runSceneFactory(ctx, call);
     default:
       throw new Error(`Unsupported factory: ${call.factory}`);
   }
@@ -1365,11 +1504,16 @@ function createPreviewHtml(goal, manifest) {
     speciesCounts: manifest.speciesCounts ?? {},
     speciesUsed: manifest.speciesUsed ?? [],
     stats: manifest.stats ?? {},
+    scene: manifest.scene ?? null,
+    seed: manifest.seed,
+    terrain: manifest.terrain ?? null,
     title: manifest.title,
     treeMeshes: [],
   };
   return rendererModeForFactory(goal.factoryName) === "threejs"
-    ? createHyperrealThreePreviewHtml(goal, renderManifest, baseFactoryName(goal.factoryName))
+    ? baseFactoryName(goal.factoryName) === "SceneFactory"
+      ? createProceduralScenePreviewHtml(goal, renderManifest)
+      : createHyperrealThreePreviewHtml(goal, renderManifest, baseFactoryName(goal.factoryName))
     : createCanvas2DPreviewHtml(goal, manifest);
 }
 
@@ -1421,6 +1565,7 @@ function writeRunArtifacts(root, goal, result) {
     },
     rendererMode,
     runId: goal.runId,
+    scene: result.scene ?? null,
     seed: goal.seed,
     skinning: result.skinning ?? {
       skeletonBoneCount: 0,
@@ -1442,6 +1587,7 @@ function writeRunArtifacts(root, goal, result) {
     speciesCounts: result.speciesCounts ?? {},
     speciesUsed: result.speciesUsed ?? [],
     stats: result.stats,
+    terrain: result.terrain ?? null,
     tags: ["game-assets", "foliage", "fbx", "textures", "nexus-simulator"],
     theme: goal.theme,
     title: goal.title,
@@ -1476,6 +1622,17 @@ function domainGate(factoryName, stats) {
         minPatchCount: 2,
         minTreeCount: 6,
         passed: Number(stats.patchCount ?? 0) >= 2 && Number(stats.treeCount ?? 0) >= 6 && Number(stats.leafCount ?? 0) >= 120,
+      };
+    case "TerrainFactory":
+      return {
+        minTerrainVertices: 81,
+        passed: Number(stats.terrainVertexCount ?? 0) >= 81,
+      };
+    case "SceneFactory":
+      return {
+        minTerrainVertices: 2401,
+        minTreeCount: 18,
+        passed: Number(stats.terrainVertexCount ?? 0) >= 2401 && Number(stats.treeCount ?? 0) >= 18,
       };
     default:
       return { passed: false };

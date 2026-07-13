@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "kit.runtime-proof.v1",
+  "packageRoot": "./valid-kit",
+  "module": "valid-kit.js",
+  "publicImport": "valid-kit.js",
+  "exportName": "createKit",
+  "proofAdapterExport": "createProofAdapter",
+  "kitId": "n-runtime-fixture-kit",
+  "inputs": [
+    { "id": "fixture-1", "type": "apply" },
+    { "id": "fixture-2", "type": "apply" }
+  ],
+  "expectedOutputs": ["accepted"],
+  "testCommands": [
+    ["node", "--check", "valid-kit.js"]
+  ]
+}

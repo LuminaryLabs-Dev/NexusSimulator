@@ -46,6 +46,20 @@ node ./src/cli.js report console <run-id>
 
 `interaction.proof` opens the staged application with Playwright, captures before/after screenshots, sends non-destructive input, checks responsiveness and console errors, and writes a normalized report.
 
+## 0.0.2 Development
+
+The current development lane adds explicit domain proof. The first tool generates and validates a deterministic procedural Three.js scene:
+
+```bash
+node ./src/cli.js tools run scene.build-proof \
+  --profile ./profiles/procedural-grove-scene.json \
+  --run-id nexus-grove-002
+```
+
+The scene profile composes `SceneFactory -> TerrainFactory + ForestFactory -> FoliagePatchFactory -> TreeFactory -> LeafFactory`. The proof runs inside SimSpace and asserts terrain/tree counts, deterministic scene hash, camera response, console cleanliness, responsiveness, and unchanged generated-source digest.
+
+This `0.0.2` work is not released or published to npm.
+
 ## Core Model
 
 ```txt

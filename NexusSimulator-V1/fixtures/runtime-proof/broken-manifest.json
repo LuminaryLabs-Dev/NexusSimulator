@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "kit.runtime-proof.v1",
+  "packageRoot": "./valid-kit",
+  "module": "broken-kit.js",
+  "publicImport": "broken-kit.js",
+  "exportName": "createKit",
+  "proofAdapterExport": "createProofAdapter",
+  "kitId": "n-broken-kit",
+  "inputs": [
+    { "id": "fixture-1", "type": "apply" }
+  ],
+  "expectedOutputs": ["accepted"]
+}

@@ -4,5 +4,9 @@ node_modules/
 **/.simspaces/
 .nexus-simulator/
 **/.nexus-simulator/
+.playwright-cli/
+**/.playwright-cli/
+output/
+**/output/
 .DS_Store
 *.log

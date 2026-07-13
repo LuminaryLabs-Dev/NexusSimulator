@@ -1,0 +1,134 @@
+{
+  "schemaVersion": "nexus.agent-showcase.v1",
+  "seed": "worldfactory-seed-alpha-002",
+  "title": "Nexus Simulator",
+  "subtitle": "WorldFactory-Harness",
+  "projectName": "Seed World Alpha",
+  "durationSeconds": 15,
+  "fps": 30,
+  "guidance": {
+    "source": "Codex",
+    "instruction": "Coordinate Sol, Terra, and Luna to build one verified world object at a time.",
+    "credit": "Planned with ChatGPT. Built by Codex agents."
+  },
+  "harness": {
+    "name": "WorldFactory-Harness",
+    "runtime": "codex",
+    "model": "gpt-5.4",
+    "strategy": "parallel-plan-cross-review-bounded-revision-serialized-commits"
+  },
+  "agents": [
+    {
+      "id": "terra",
+      "name": "Terra",
+      "role": "Terrain and biome architect",
+      "startsAt": 2.65,
+      "color": "#61d69a"
+    },
+    {
+      "id": "sol",
+      "name": "Sol",
+      "role": "Lighting and atmosphere architect",
+      "startsAt": 3.35,
+      "color": "#e7a84d"
+    },
+    {
+      "id": "luna",
+      "name": "Luna",
+      "role": "Interaction and validation architect",
+      "startsAt": 4.05,
+      "color": "#59c4d7"
+    }
+  ],
+  "palette": {
+    "graphite": "#121918",
+    "ivory": "#e9eee8",
+    "mint": "#61d69a",
+    "cyan": "#59c4d7",
+    "amber": "#e7a84d",
+    "coral": "#d96f5f"
+  },
+  "steps": [
+    {
+      "id": "world-foundation",
+      "type": "foundation",
+      "agent": "terra",
+      "label": "World Foundation",
+      "instruction": "Terra establishes the world foundation.",
+      "position": [0, 0.15, 0],
+      "color": "#61d69a"
+    },
+    {
+      "id": "solar-key",
+      "type": "solar",
+      "agent": "sol",
+      "label": "Solar Key",
+      "instruction": "Sol establishes the world's key light.",
+      "position": [-4.1, 4.7, -2.3],
+      "color": "#e7a84d"
+    },
+    {
+      "id": "safe-boundary",
+      "type": "boundary",
+      "agent": "luna",
+      "label": "Safe Boundary",
+      "instruction": "Luna defines the safe simulation boundary.",
+      "position": [0, 0.08, 0],
+      "color": "#59c4d7"
+    },
+    {
+      "id": "mountain-range",
+      "type": "mountains",
+      "agent": "terra",
+      "label": "Mountain Range",
+      "instruction": "Terra raises a navigable mountain range.",
+      "position": [-1.8, 0.55, -1.6],
+      "color": "#8fb07a"
+    },
+    {
+      "id": "atmosphere-arc",
+      "type": "atmosphere",
+      "agent": "sol",
+      "label": "Atmosphere Arc",
+      "instruction": "Sol adds readable atmospheric depth.",
+      "position": [0, 3.8, 0],
+      "color": "#e9eee8"
+    },
+    {
+      "id": "world-portal",
+      "type": "portal",
+      "agent": "luna",
+      "label": "World Portal",
+      "instruction": "Luna installs a tested interaction portal.",
+      "position": [0, 1.45, 3.25],
+      "color": "#59c4d7"
+    },
+    {
+      "id": "biome-grove",
+      "type": "grove",
+      "agent": "terra",
+      "label": "Biome Grove",
+      "instruction": "Terra plants a compact biome grove.",
+      "position": [2.6, 0.45, -0.9],
+      "color": "#61d69a"
+    },
+    {
+      "id": "navigation-beacon",
+      "type": "beacon",
+      "agent": "sol",
+      "label": "Navigation Beacon",
+      "instruction": "Sol places a visible navigation beacon.",
+      "position": [3.5, 1.05, 2.1],
+      "color": "#e7a84d"
+    },
+    {
+      "id": "validation-core",
+      "type": "core",
+      "agent": "luna",
+      "label": "Validation Core",
+      "instruction": "Luna seals the world with validation proof.",
+      "position": [0, 1.05, 0],
+      "color": "#59c4d7"
+    }
+  ]
+}
