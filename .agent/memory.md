@@ -13,7 +13,10 @@ Status: active
 ## Current Decisions
 
 - `main` is the source of truth.
-- `0.0.1` is the frozen public release branch; no version tag is used.
+- All work begins on a focused `feature/<goal>` branch created from updated `main`.
+- Validated feature branches are pushed and merged into `main`; direct development on `main` is not allowed.
+- Numbered branches are stable release snapshots created only after enough progress is approved, then kept frozen.
+- `0.0.1` and `0.0.2` are frozen release branches; no version tags are used.
 - `interaction.proof` is the first public domain tool.
 - `scene.build-proof` is the first 0.0.2 build-and-prove tool and must preserve `tool -> SimSpace -> one simtime -> evidence`.
 - `SceneFactory` composes the 3D-only `TerrainFactory` with the existing recursive foliage factories; generated terrain and scene state are seed-hashed.
@@ -29,4 +32,4 @@ Status: active
 - `validate` and `simspace run` are safe defaults.
 - Local runtime data is ignored by Git and excluded from npm.
 - Native runtime paths must come from configuration or `NEXUS_ENGINE_*` environment variables.
-- `0.0.2` owns explicit domain proof, future multi-environment profiles, and local-first RPC.
+- `0.0.3` development accumulates on `main` through feature branches. The `0.0.3` release branch does not exist until promotion is approved.

@@ -63,6 +63,7 @@ The optional NexusEngine runtime adapter has no machine-specific defaults. Confi
 ## Release Convention
 
 - `main` is the source of truth.
-- `0.0.1` is the frozen first public release branch; no `v0.0.1` tag is used.
-- `0.0.2` starts with explicit scene build proof and remains the development lane for multi-environment execution and RPC/agent access.
+- All changes are developed on focused `feature/<goal>` branches created from updated `main` and merged only after validation.
+- `0.0.1` and `0.0.2` are frozen release branches; no version tags are used.
+- `main` is the integration line for `0.0.3`; create the `0.0.3` branch only when enough validated progress is approved for release.
 - Update this file only when durable architecture or workflow decisions change.

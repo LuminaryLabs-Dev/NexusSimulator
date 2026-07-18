@@ -12,6 +12,7 @@ Short index of current user feedback and correction history.
 - `feedback-packets/002-simple-default-cli.md`: default help must stay simple.
 - `feedback-packets/003-safe-simspace-default.md`: SimSpace is the default safe path.
 - `feedback-packets/004-v2-agent-usability.md`: agents need simple hooks, reports, and RPC.
+- `feedback-packets/005-git-flow.md`: all work uses feature branches; `main` integrates and numbered branches freeze stable releases.
 
 ## Notes
 

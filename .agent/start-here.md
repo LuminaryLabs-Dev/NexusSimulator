@@ -9,9 +9,10 @@ Repo-local handoff for NexusSimulator agents.
 ## Repo
 
 - Main package: `NexusSimulator-V1/`
-- Current release: `0.0.1`
-- Source branch: `main`
-- Frozen release branch: `0.0.1`
+- Current stable release branch: `0.0.2`
+- Integration branch: `main`
+- Frozen release branches: `0.0.1`, `0.0.2`
+- Next development target: `0.0.3` through `feature/<goal>` branches
 - Remote: `LuminaryLabs-Dev/NexusSimulator`
 
 ## Read Order
@@ -27,10 +28,15 @@ Repo-local handoff for NexusSimulator agents.
 
 ```bash
 git status --short --branch
+git switch main
+git pull --ff-only origin main
+git switch -c feature/<goal>
 cd NexusSimulator-V1
 npm run check
 npm run smoke
 ```
+
+Do not implement directly on `main`. Merge a feature branch into `main` only after validation.
 
 ## Safety
 
