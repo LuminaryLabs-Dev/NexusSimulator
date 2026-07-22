@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "nexus.execution-profile.v1",
+  "adapter": "nexus-headless",
+  "allowedWorkspaceRoots": ["apps"],
+  "allowDestructive": false,
+  "stageRoot": "apps/example-world",
+  "modulePath": "runtime/headless-runtime.mjs",
+  "runtimeExport": "createHeadlessEditorRuntime",
+  "allowActions": [
+    "world.object.update",
+    "world.terrain.rebuild",
+    "world.validate"
+  ],
+  "actionSchemas": {},
+  "actionPolicy": {},
+  "outputRoots": [
+    "output",
+    "artifacts",
+    "logs",
+    "temp"
+  ],
+  "resourceLimits": {
+    "memory": "best-effort",
+    "memoryMb": 1024
+  }
+}

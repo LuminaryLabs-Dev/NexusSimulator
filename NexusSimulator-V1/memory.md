@@ -8,6 +8,10 @@ NexusSimulator is a Node CLI for safely validating applications through replayab
 
 - `src/cli.js` is the terminal entrypoint.
 - `src/actions.js` is the shared agent-facing action layer.
+- `src/action-registry.js` is the typed action source shared by world CLI and MCP adapters.
+- `src/world-session-manager.js` owns persistent revisioned world sessions inside SimSpace; `src/world-batch.js` owns ordered preflight, execution, checkpoint, rollback, persistence, and result normalization.
+- `src/world-adapters.js` normalizes browser and Nexus headless worlds without merging their simtime responsibilities.
+- `src/mcp-server.js` exposes the shared registry over stdio and stateful Streamable HTTP. HTTP is localhost-only by default; LAN binding requires token authentication and exact Host allowlisting.
 - `src/runtime.js` owns local environments, append-only JSONL scenarios, capability checks, and direct replay.
 - `src/simspace.js` stages disposable application copies before safe validation.
 - `src/simtimes.js` registers adapters with `id`, `type`, `surface`, and `supports` metadata.
@@ -38,6 +42,13 @@ NexusSimulator is a Node CLI for safely validating applications through replayab
 - `simtime` is one interaction-surface adapter.
 - `simspace` is a disposable runtime copy.
 - `tool` is a user/agent-facing validation action.
+- `world.batch_command` is the primary connected world-write contract for CLI and MCP. Individual world actions remain typed subcommands and are not separate MCP mutation tools.
+- World sessions use optimistic `baseRevision` checks, one lock and active batch per session, deterministic snapshots, append-only events, idempotent batch IDs, and verified rollback.
+- Browser worlds may only execute the fixed `window.__NEXUS_WORLD_COMMANDS__` bridge. Headless DSK actions require both execution-profile allowlisting and an input schema.
+- Execution profiles may narrow server workspace roots and browser capabilities. Destructive actions require profile, server, and batch approval; profiles cannot expand server authority.
+- Local SimSpace isolates staged paths and run outputs for trusted applications but is not an OS security sandbox; untrusted runtime code requires a future container-backed execution backend.
+- Supplied goals and reasons are explicit audit metadata; reports do not claim or store private model chain-of-thought.
+- MCP transport sessions and persisted world sessions are separate lifecycles.
 - Future fallback and composition belong in an orchestrator, not inside simtimes.
 - Deterministic scene previews expose proof state through `window.__NEXUS_TEST_STATE__` and deterministic advancement through `window.__NEXUS_SIMTIME__`.
 - Cinematic showcase pages expose `window.__NEXUS_SHOWCASE__.renderAt(time)` so capture renders every requested frame directly instead of accelerating checkpoint footage.

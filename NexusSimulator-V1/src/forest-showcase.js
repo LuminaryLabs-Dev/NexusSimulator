@@ -998,6 +998,7 @@ export function createForestShowcaseHtml(profile) {
     const worldScale = { terrainPatch: 0.72, oak: 0.84, birch: 0.78, pine: 0.78, willow: 0.7, boulders: 0.76, crystals: 0.68, shrine: 0.92, arch: 0.94, bridge: 1.08, waterfall: 0.92, mushrooms: 0.9, fireflies: 1, lantern: 0.94, monolith: 0.94 };
     const editorOverrides = profile.steps.map((step) => ({
       seed: profile.seed + ":" + step.id,
+      position: [...step.position],
       scale: 1,
       rotation: 0,
       roughness: 0.55,
@@ -1236,6 +1237,9 @@ export function createForestShowcaseHtml(profile) {
 
     function applyEditorOverride(index) {
       const override = editorOverrides[index];
+      if (worldAssets[index]?.userData?.target && Array.isArray(override.position)) {
+        worldAssets[index].userData.target.fromArray(override.position);
+      }
       for (const root of [testAssets[index], worldAssets[index]]) {
         const meshes = [];
         root.traverse((object) => { if (object.isMesh || object.isPoints || object.isLine) meshes.push(object); });
@@ -1257,7 +1261,7 @@ export function createForestShowcaseHtml(profile) {
     }
 
     function regenerateEditorAsset(index) {
-      const step = { ...profile.steps[index], seed: editorOverrides[index].seed };
+      const step = { ...profile.steps[index], position: [...editorOverrides[index].position], seed: editorOverrides[index].seed };
       studio.remove(testAssets[index]);
       forestWorld.remove(worldAssets[index]);
       const testObject = factories[step.type](step, "test");
@@ -1275,6 +1279,137 @@ export function createForestShowcaseHtml(profile) {
       rememberMaterialState(testObject);
       rememberMaterialState(worldObject);
       applyEditorOverride(index);
+    }
+
+    function worldCommandSnapshot() {
+      return JSON.parse(JSON.stringify({
+        selectedId: profile.steps[editorSelectedIndex].id,
+        selectedIndex: editorSelectedIndex,
+        worldStructure: activeWorldStructureId,
+        worldType: activeWorldTypeId,
+        overrides: editorOverrides,
+      }));
+    }
+
+    function worldObjectIndex(id) {
+      const index = profile.steps.findIndex((step) => step.id === id);
+      if (index < 0) {
+        const error = new Error("Unknown world object: " + id);
+        error.code = "WORLD_OBJECT_NOT_FOUND";
+        throw error;
+      }
+      return index;
+    }
+
+    function restoreWorldCommandSnapshot(snapshot) {
+      if (!snapshot || !Array.isArray(snapshot.overrides) || snapshot.overrides.length !== editorOverrides.length) return false;
+      if (snapshot.worldType && !setWorldType(snapshot.worldType)) return false;
+      if (snapshot.worldStructure && !setWorldStructure(snapshot.worldStructure)) return false;
+      snapshot.overrides.forEach((value, index) => {
+        const current = editorOverrides[index];
+        const next = JSON.parse(JSON.stringify(value));
+        const seedChanged = current.seed !== next.seed;
+        Object.assign(current, next);
+        if (seedChanged) regenerateEditorAsset(index);
+        applyEditorOverride(index);
+      });
+      state.editor.added = profile.steps.filter((step, index) => editorOverrides[index].added).map((step) => step.id);
+      state.world.committed = state.editor.added.length;
+      selectEditorObject(snapshot.selectedIndex ?? worldObjectIndex(snapshot.selectedId));
+      renderAt(editorObjectTime(editorSelectedIndex));
+      renderer.render(scene, camera);
+      return worldCommandSnapshot();
+    }
+
+    function executeWorldCommand(command) {
+      const action = command?.action;
+      const args = command?.args || {};
+      if (action === "world.observe") return { ok: true, data: worldCommandSnapshot() };
+      if (action === "world.object.select") {
+        selectEditorObject(worldObjectIndex(args.id));
+      } else if (action === "world.object.update") {
+        const index = worldObjectIndex(args.id);
+        selectEditorObject(index);
+        const override = editorOverrides[index];
+        if (args.position) override.position = args.position.map(Number);
+        if (args.rotation !== undefined) {
+          if (Array.isArray(args.rotation)) override.rotation = Number(args.rotation[1]);
+          else override.rotation = Number(args.rotation);
+        }
+        if (args.scale !== undefined) {
+          if (Array.isArray(args.scale)) {
+            if (!args.scale.every((value) => Number(value) === Number(args.scale[0]))) {
+              const error = new Error("Forest showcase supports uniform object scale only.");
+              error.code = "NON_UNIFORM_SCALE_UNSUPPORTED";
+              throw error;
+            }
+            override.scale = Number(args.scale[0]);
+          } else override.scale = Number(args.scale);
+        }
+        for (const [name, value] of Object.entries(args.controls || {})) {
+          if (!setEditorControl(name, value)) {
+            const error = new Error("Unknown editor control: " + name);
+            error.code = "WORLD_CONTROL_UNAVAILABLE";
+            throw error;
+          }
+        }
+        applyEditorOverride(index);
+        setEditorStatus("draft", "world command update requires validation");
+        renderAt(editorObjectTime(index));
+      } else if (action === "world.object.regenerate") {
+        const index = worldObjectIndex(args.id);
+        selectEditorObject(index);
+        editorOverrides[index].seed = String(args.seed);
+        regenerateEditorAsset(index);
+        setEditorStatus("draft", "variant regenerated; validation required");
+        renderAt(editorObjectTime(index));
+      } else if (action === "world.object.commit") {
+        selectEditorObject(worldObjectIndex(args.id));
+        const validation = validateEditorObject();
+        if (!validation.passed || !addEditorObject()) {
+          const error = new Error("World object did not pass validation and was not committed.");
+          error.code = "WORLD_OBJECT_COMMIT_REJECTED";
+          throw error;
+        }
+      } else if (action === "world.terrain.rebuild") {
+        const index = profile.steps.findIndex((step) => step.type === "terrainPatch");
+        if (index < 0) {
+          const error = new Error("This world has no terrainPatch object.");
+          error.code = "TERRAIN_UNAVAILABLE";
+          throw error;
+        }
+        selectEditorObject(index);
+        editorOverrides[index].seed = String(args.seed);
+        for (const [name, value] of Object.entries(args.parameters || {})) {
+          if (!setEditorControl(name, value)) {
+            const error = new Error("Unknown terrain parameter: " + name);
+            error.code = "TERRAIN_PARAMETER_UNAVAILABLE";
+            throw error;
+          }
+        }
+        regenerateEditorAsset(index);
+        setEditorStatus("draft", "terrain rebuilt; validation required");
+        renderAt(editorObjectTime(index));
+      } else if (action === "world.settings.update") {
+        if (args.worldType && !setWorldType(args.worldType)) throw new Error("Unknown world type: " + args.worldType);
+        if (args.worldStructure && !setWorldStructure(args.worldStructure)) throw new Error("Unknown world structure: " + args.worldStructure);
+      } else if (action === "world.validate") {
+        if (args.id) selectEditorObject(worldObjectIndex(args.id));
+        const result = validateEditorObject();
+        if (!result.passed) {
+          const error = new Error("World validation failed.");
+          error.code = "WORLD_VALIDATION_FAILED";
+          error.details = result;
+          throw error;
+        }
+        return { ok: true, data: result, snapshot: worldCommandSnapshot() };
+      } else {
+        const error = new Error("Unsupported world action: " + action);
+        error.code = "WORLD_ACTION_UNAVAILABLE";
+        throw error;
+      }
+      renderer.render(scene, camera);
+      return { ok: true, data: worldCommandSnapshot(), snapshot: worldCommandSnapshot() };
     }
 
     function updateTerrainPalette() {
@@ -1839,6 +1974,27 @@ export function createForestShowcaseHtml(profile) {
       setWorldStructure,
       validate: validateEditorObject,
       validateWorldStructure,
+    };
+    window.__NEXUS_WORLD_COMMANDS__ = {
+      version: "1",
+      manifest: () => ({
+        version: "1",
+        actions: [
+          "world.observe",
+          "world.validate",
+          "world.capture",
+          "world.object.select",
+          "world.object.update",
+          "world.object.regenerate",
+          "world.object.commit",
+          "world.terrain.rebuild",
+          "world.settings.update",
+        ],
+      }),
+      execute: executeWorldCommand,
+      observe: worldCommandSnapshot,
+      restore: restoreWorldCommandSnapshot,
+      snapshot: worldCommandSnapshot,
     };
     rebuildWorldStructureGuide();
     resize();

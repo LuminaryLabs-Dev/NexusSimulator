@@ -2,6 +2,8 @@
 
 Safe application validation through disposable SimSpace runs and focused interaction surfaces.
 
+Node.js 20 or newer is required for the `0.0.3` development harness.
+
 ```bash
 git clone https://github.com/LuminaryLabs-Dev/NexusSimulator.git
 cd NexusSimulator/NexusSimulator-V1
@@ -9,6 +11,18 @@ npm install
 npx playwright install chromium
 node ./src/cli.js validate <path> --tool interaction.proof
 ```
+
+## Revisioned World Batches
+
+Agents can create a persistent staged world and submit one coherent sequence through CLI or MCP:
+
+```bash
+node ./src/cli.js world session create --target <path> --adapter browser
+node ./src/cli.js world batch --file commands.json
+node ./src/cli.js mcp serve --transport stdio
+```
+
+`world.batch_command` is the only general MCP world-mutation tool. Subcommands are typed and allowlisted, execute in order, require a base revision, and produce one durable combined result. Browser worlds expose `window.__NEXUS_WORLD_COMMANDS__`; headless worlds use a staged execution profile and Core Headless Editor-compatible runtime. Read [docs/world-batch-mcp.md](./docs/world-batch-mcp.md) for profiles, agent configuration, LAN security, rollback, limits, and revision recovery.
 
 Validate KitUniverse-style JSONL contracts without staging an application:
 

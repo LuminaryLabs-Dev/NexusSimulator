@@ -1,5 +1,5 @@
-import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
-import { dirname, join, relative, resolve, basename } from "node:path";
+import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, readdirSync, realpathSync, statSync, writeFileSync } from "node:fs";
+import { dirname, isAbsolute, join, relative, resolve, basename } from "node:path";
 import { randomUUID } from "node:crypto";
 import net from "node:net";
 import { createSimtime } from "./simtimes.js";
@@ -204,6 +204,7 @@ function stageSourceTree(sourceRoot, runAppDir, attachedAppPath) {
     };
   }
 
+  assertSafeSymlinks(sourceRoot);
   cpSync(sourceRoot, runAppDir, {
     dereference: false,
     force: true,
@@ -232,6 +233,31 @@ function stageSourceTree(sourceRoot, runAppDir, attachedAppPath) {
     stagedAppPath,
     stagedRoot: runAppDir,
   };
+}
+
+function isWithin(root, candidate) {
+  const canonicalRoot = existsSync(root) ? realpathSync(root) : resolve(root);
+  const canonicalCandidate = existsSync(candidate) ? realpathSync(candidate) : resolve(candidate);
+  const rel = relative(canonicalRoot, canonicalCandidate);
+  return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
+}
+
+function assertSafeSymlinks(sourceRoot, current = sourceRoot) {
+  for (const entry of readdirSync(current, { withFileTypes: true })) {
+    if ([".git", ".nexus-simulator", ".simspaces"].includes(entry.name)) continue;
+    const path = join(current, entry.name);
+    if (entry.isSymbolicLink()) {
+      const target = readlinkSync(path);
+      const resolvedTarget = resolve(dirname(path), target);
+      if (isAbsolute(target) || !isWithin(sourceRoot, resolvedTarget)) {
+        const error = new Error(`SimSpace rejected escaping symlink: ${path} -> ${target}`);
+        error.code = "SIMSPACE_SYMLINK_ESCAPE";
+        throw error;
+      }
+      continue;
+    }
+    if (entry.isDirectory()) assertSafeSymlinks(sourceRoot, path);
+  }
 }
 
 function writeRunArtifacts(runDir, payload) {
@@ -445,6 +471,56 @@ export async function runScenarioInSimSpace(envName, scenarioName, simtimeOverri
     simtimeId,
     throwOnFailure: true,
   });
+}
+
+export function getSimSpaceRunsDir(workspaceRoot = process.env.NEXUS_SIM_WORKSPACE_ROOT ?? process.cwd()) {
+  return join(resolve(workspaceRoot), ".simspaces", "runs");
+}
+
+export async function prepareWorldSimSpace({
+  sessionId,
+  sourceRoot = null,
+  targetPath,
+  workspaceRoot = process.env.NEXUS_SIM_WORKSPACE_ROOT ?? process.cwd(),
+}) {
+  const resolvedTarget = resolve(targetPath);
+  if (!existsSync(resolvedTarget)) throw new Error(`World target does not exist: ${resolvedTarget}`);
+  const resolvedSourceRoot = resolve(sourceRoot ?? resolvedTarget);
+  if (!existsSync(resolvedSourceRoot)) throw new Error(`World source root does not exist: ${resolvedSourceRoot}`);
+  if (!isWithin(resolvedSourceRoot, resolvedTarget) && resolvedSourceRoot !== resolvedTarget) {
+    throw new Error(`World target must be inside source root: ${resolvedSourceRoot}`);
+  }
+
+  const worldRunsDir = getSimSpaceRunsDir(workspaceRoot);
+  const runDir = join(worldRunsDir, sessionId);
+  if (existsSync(runDir)) {
+    const error = new Error(`SimSpace session already exists: ${sessionId}`);
+    error.code = "SESSION_EXISTS";
+    throw error;
+  }
+  ensureDir(runDir);
+  const allocatedPort = await allocatePort();
+  const staged = stageSourceTree(resolvedSourceRoot, join(runDir, "app"), resolvedTarget);
+  const manifest = {
+    allocatedPort,
+    cleanupPolicy: "archive",
+    createdAt: new Date().toISOString(),
+    kind: "world-session",
+    runDir,
+    runId: sessionId,
+    sourceRoot: resolvedSourceRoot,
+    stagedAppPath: staged.stagedAppPath,
+    stagedRoot: staged.stagedRoot,
+  };
+  writeRunArtifacts(runDir, {
+    events: [],
+    manifest,
+    ports: { allocatedPort, baseUrl: `http://127.0.0.1:${allocatedPort}/` },
+    processes: [],
+  });
+  ensureDir(join(runDir, "batches"));
+  ensureDir(join(runDir, "checkpoints"));
+  return { ...staged, allocatedPort, manifest, runDir };
 }
 
 export async function runScenarioInSimSpaceChunked(envName, scenarioName, simtimeOverride, options = {}) {

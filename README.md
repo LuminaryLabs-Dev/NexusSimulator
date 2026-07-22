@@ -20,7 +20,7 @@ npx playwright install chromium
 node ./src/cli.js --help
 ```
 
-Node.js 18 or newer is required.
+Node.js 20 or newer is required.
 
 After registry publication:
 
@@ -59,6 +59,26 @@ node ./src/cli.js tools run scene.build-proof \
 The scene profile composes `SceneFactory -> TerrainFactory + ForestFactory -> FoliagePatchFactory -> TreeFactory -> LeafFactory`. The proof runs inside SimSpace and asserts terrain/tree counts, deterministic scene hash, camera response, console cleanliness, responsiveness, and unchanged generated-source digest.
 
 This `0.0.2` work is not released or published to npm.
+
+## 0.0.3 World Batch Development
+
+The current feature lane adds a revisioned world harness shared by terminal clients and MCP agents:
+
+```txt
+CLI / MCP -> action registry -> world session -> world.batch_command
+                                      |-> browser bridge through Playwright
+                                      `-> staged Nexus headless runtime
+```
+
+```bash
+node ./src/cli.js world session create --target <path> --adapter browser
+node ./src/cli.js world batch --file commands.json
+node ./src/cli.js mcp serve --transport stdio
+```
+
+World writes are typed, allowlisted subcommands inside one ordered batch. Every batch uses a required base revision, persists its request/result, supports dry-run/checkpoint policies, and reports safe `nexus-sim://` evidence links. See [World Batch and MCP](./NexusSimulator-V1/docs/world-batch-mcp.md).
+
+This remains `0.0.3` development on feature branches. The package version stays `0.0.2` until the release gate is approved.
 
 ## Core Model
 

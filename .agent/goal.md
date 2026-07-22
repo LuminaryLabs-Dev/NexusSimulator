@@ -14,10 +14,13 @@ Develop NexusSimulator toward `0.0.3` through small validated feature branches w
 - `0.0.1` and `0.0.2` remain unchanged as stable release branches.
 - A `0.0.3` branch is created only after the user approves a validated release point.
 - The technical scope for `0.0.3` is tracked through separate goal packets instead of one oversized migration.
+- CLI and MCP share one typed world action registry.
+- `world.batch_command` validates, revision-checks, checkpoints, executes, and reports an ordered command sequence inside SimSpace.
+- Browser and Nexus headless adapters prove parity without source-tree mutation.
 
 ## Next Goal
 
-Define the first focused `0.0.3` feature goal before implementation.
+Validate and review `.agent/goal-packets/007-world-batch-mcp.md`, then merge the feature branch into `main` only after all gates pass.
 
 ## Release State
 

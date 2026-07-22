@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { readFileSync } from "node:fs";
 import {
   appendScenarioEvent,
   attachApp,
@@ -52,6 +53,7 @@ import {
   runSceneBuildProofAction,
   validateScenarioAction,
   validateTargetAction,
+  createWorldActionSurface,
 } from "./actions.js";
 import {
   loadReport,
@@ -120,6 +122,15 @@ function usageAll() {
     "  nexus-sim simtime inspect <id>",
     "  nexus-sim simspace run <env> <scenario> [--simtime <id>]",
     "  nexus-sim simspace run-chunked <env> <scenario> [--chunk-size 5] [--resume <run-id>] [--stop-after-checkpoint] [--simtime <id>]",
+    "  nexus-sim world session create --target <path> [--adapter browser|nexus-headless] [--profile <path>] [--session-id <id>] [--workspace-root <path>]",
+    "  nexus-sim world session status <session-id> [--workspace-root <path>]",
+    "  nexus-sim world observe <session-id> [--workspace-root <path>]",
+    "  nexus-sim world batch --file <batch.json> [--workspace-root <path>] [--allow-destructive]",
+    "  nexus-sim world batch status <session-id> <batch-id> [--workspace-root <path>]",
+    "  nexus-sim world session cancel <session-id> [--workspace-root <path>]",
+    "  nexus-sim world session close <session-id> [--workspace-root <path>]",
+    "  nexus-sim mcp serve --transport stdio [--workspace-root <path>] [--allow-destructive]",
+    "  nexus-sim mcp serve --transport http [--host 127.0.0.1] [--port 8765] [--allowed-host <host>] [--workspace-root <path>] [--allow-destructive]",
     "  nexus-sim scenario append <env> <scenario> <command> [args-json]",
     "  nexus-sim scenario list <env>",
     "  nexus-sim scenario show <env> <scenario>",
@@ -151,6 +162,8 @@ function usageAll() {
     "",
     "Scenario files are append-only JSONL logs stored in .nexus-simulator/scenarios/.",
     "Prefer simspace run or validate for safe app validation.",
+    "World mutations are allowlisted subcommands inside world.batch_command.",
+    "LAN MCP requires NEXUS_SIM_MCP_TOKEN (32+ characters) and explicit --allowed-host values.",
   ].join("\n"));
 }
 
@@ -211,6 +224,48 @@ function parseNamedOption(args, option) {
   const value = args[index + 1];
   if (!value) throw new Error(`Missing value after ${option}.`);
   return value;
+}
+
+function parseRepeatedOption(args, option) {
+  const values = [];
+  for (let index = 0; index < args.length; index += 1) {
+    if (args[index] !== option) continue;
+    const value = args[index + 1];
+    if (!value) throw new Error(`Missing value after ${option}.`);
+    values.push(value);
+  }
+  return values;
+}
+
+function worldSurfaceOptions(args, keepAlive = false) {
+  const workspaceRoot = parseNamedOption(args, "--workspace-root") ?? process.cwd();
+  const configuredRoots = parseRepeatedOption(args, "--allowed-root");
+  return {
+    allowDestructive: args.includes("--allow-destructive"),
+    allowedRoots: configuredRoots.length ? configuredRoots : [workspaceRoot],
+    keepAlive,
+    workspaceRoot,
+  };
+}
+
+function setBatchExitCode(status) {
+  if (status === "partial") process.exitCode = 2;
+  else if (status === "rolled_back") process.exitCode = 3;
+  else if (status === "failed") process.exitCode = 1;
+}
+
+async function waitForShutdown(close) {
+  await new Promise((resolveShutdown) => {
+    let closing = false;
+    const shutdown = async () => {
+      if (closing) return;
+      closing = true;
+      await close().catch(() => {});
+      resolveShutdown();
+    };
+    process.once("SIGINT", shutdown);
+    process.once("SIGTERM", shutdown);
+  });
 }
 
 function parseNumberOption(args, option, fallback) {
@@ -288,6 +343,79 @@ async function main(argv) {
       status: result.report.status,
     });
     return;
+  }
+
+  if (scope === "world") {
+    const surface = createWorldActionSurface(worldSurfaceOptions(rest));
+    try {
+      if (verb === "session") {
+        const [action, ...sessionArgs] = rest;
+        if (action === "create") {
+          const targetPath = parseNamedOption(sessionArgs, "--target");
+          const adapter = parseNamedOption(sessionArgs, "--adapter") ?? "browser";
+          const profilePath = parseNamedOption(sessionArgs, "--profile");
+          const sessionId = parseNamedOption(sessionArgs, "--session-id");
+          if (!targetPath) throw new Error("Usage: nexus-sim world session create --target <path> [--adapter browser|nexus-headless]");
+          printValue(await surface.dispatch("world.session_create", { adapter, profilePath: profilePath ?? undefined, sessionId: sessionId ?? undefined, targetPath }));
+          return;
+        }
+        const [sessionId] = sessionArgs.filter((value) => !value.startsWith("--"));
+        if (!sessionId) throw new Error("Usage: nexus-sim world session <status|cancel|close> <session-id>");
+        if (action === "status") printValue(await surface.dispatch("world.session_status", { sessionId }));
+        else if (action === "cancel") printValue(await surface.dispatch("world.session_cancel", { sessionId }));
+        else if (action === "close") printValue(await surface.dispatch("world.session_close", { sessionId }));
+        else throw new Error("Usage: nexus-sim world session <create|status|cancel|close> [...options]");
+        return;
+      }
+      if (verb === "observe") {
+        const [sessionId] = rest;
+        if (!sessionId) throw new Error("Usage: nexus-sim world observe <session-id>");
+        printValue(await surface.dispatch("world.observe", { sessionId }));
+        return;
+      }
+      if (verb === "batch") {
+        if (rest[0] === "status") {
+          const [sessionId, batchId] = rest.slice(1);
+          if (!sessionId || !batchId) throw new Error("Usage: nexus-sim world batch status <session-id> <batch-id>");
+          const result = await surface.dispatch("world.batch_status", { batchId, sessionId });
+          printValue(result);
+          setBatchExitCode(result.status);
+          return;
+        }
+        const file = parseNamedOption(rest, "--file");
+        if (!file) throw new Error("Usage: nexus-sim world batch --file <batch.json>");
+        const request = JSON.parse(readFileSync(file, "utf8"));
+        const result = await surface.dispatch("world.batch_command", request);
+        printValue(result);
+        setBatchExitCode(result.status);
+        return;
+      }
+      throw new Error("Usage: nexus-sim world <session|observe|batch> [...options]");
+    } finally {
+      await surface.shutdown();
+    }
+  }
+
+  if (scope === "mcp" && verb === "serve") {
+    const { startMcpHttpServer, startMcpStdioServer } = await import("./mcp-server.js");
+    const transport = parseNamedOption(rest, "--transport") ?? "stdio";
+    const options = worldSurfaceOptions(rest, true);
+    if (transport === "stdio") {
+      const handle = await startMcpStdioServer(options);
+      await waitForShutdown(handle.close);
+      return;
+    }
+    if (transport === "http") {
+      const host = parseNamedOption(rest, "--host") ?? "127.0.0.1";
+      const port = parseNumberOption(rest, "--port", 8765);
+      const allowedHosts = parseRepeatedOption(rest, "--allowed-host");
+      const handle = await startMcpHttpServer({ ...options, allowedHosts, host, port });
+      const address = handle.address;
+      console.error(`NexusSimulator MCP listening on http://${host}:${address.port}/mcp`);
+      await waitForShutdown(handle.close);
+      return;
+    }
+    throw new Error("--transport must be stdio or http.");
   }
 
   if (scope === "tools" && (!verb || verb === "list")) {

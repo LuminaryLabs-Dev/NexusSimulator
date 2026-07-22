@@ -24,6 +24,8 @@ Repo-local handoff for NexusSimulator agents.
 5. `.agent/goal.md`
 6. Active goal and feedback packets
 
+Current world/MCP implementation packet: `.agent/goal-packets/007-world-batch-mcp.md`.
+
 ## First Commands
 
 ```bash

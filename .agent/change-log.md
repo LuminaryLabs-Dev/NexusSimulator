@@ -11,3 +11,4 @@ Status: active
 - 2026-07-09 18:45:00 America/New_York - Implemented local `0.0.2` procedural scene generation and `scene.build-proof` with explicit SimSpace evidence, negative-gate proof, and desktop/mobile human-view validation.
 - 2026-07-11 04:12:00 America/New_York - Added `kit.runtime-proof` for selected kit implementations with disposable staging, real Nexus Engine install, ESM import, transition/replay/snapshot/reset checks, declared command execution, immutable reports, and valid/broken fixture proof.
 - 2026-07-18 19:08:42 America/New_York - Adopted feature-branch Git flow: validated work merges into `main`, while numbered release branches remain frozen milestones.
+- 2026-07-22 03:02:48 America/New_York - Added the revisioned `world.batch_command` registry, persistent SimSpace sessions, browser and Nexus headless adapters, CLI/MCP parity, transport security, and validation packet for `0.0.3` development.

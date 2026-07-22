@@ -4,6 +4,7 @@ import { createNexusEngineRuntimeAdapter } from "./nexusengine-runtime-simtime.j
 import { createNexusRealtimeAdapter } from "./nexusrealtime-simtime.js";
 import { createPlaywrightAdapter } from "./playwright-simtime.js";
 import { createARAdapter } from "./ar-simtime.js";
+import { createNexusHeadlessAdapter } from "./nexus-headless-simtime.js";
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -330,6 +331,7 @@ export const simtimeFactories = {
   "human-interaction": () => createHumanInteractionAdapter(),
   "ar-simtime": (context) => createARAdapter(context),
   "nexusengine-runtime": (context) => createNexusEngineRuntimeAdapter(context),
+  "nexus-headless": (context) => createNexusHeadlessAdapter(context),
   nexusrealtime: (context) => createNexusRealtimeAdapter(context),
   "web-app": (context) => createWebAppAdapter(context),
   playwright: (context) => createPlaywrightAdapter(context),

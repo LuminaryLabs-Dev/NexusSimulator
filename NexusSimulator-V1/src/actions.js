@@ -4,6 +4,7 @@ import { detectApp } from "./app-detection.js";
 import { checkScenario } from "./runtime.js";
 import { runEventsInSimSpace, runScenarioInSimSpace } from "./simspace.js";
 import { inspectTool, listTools, toolForMedium } from "./tool-catalog.js";
+export { createWorldActionSurface } from "./world-actions.js";
 export { runSceneBuildProofAction } from "./scene-build-proof.js";
 export { runAgentShowcaseAction } from "./agent-showcase.js";
 export { runWorldEditorSessionAction } from "./world-editor-session.js";

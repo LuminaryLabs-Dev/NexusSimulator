@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { copyFileSync, createReadStream, existsSync, mkdirSync, statSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { basename, dirname, extname, join, resolve } from "node:path";
@@ -45,6 +45,11 @@ export const playwrightSupports = [
   "checkpoint",
   "assertStillResponsive",
   "advanceSimTime",
+  "worldManifest",
+  "worldInvoke",
+  "worldObserve",
+  "worldSnapshot",
+  "worldRestore",
 ];
 
 const contentTypes = {
@@ -89,6 +94,7 @@ function createInitialState(context) {
     launchMode: app.launchMode ?? "unknown",
     logs: [],
     processes: [],
+    recordVideo: app.recordVideo !== false,
     pageOpened: false,
     server: null,
     sessionSummary: "",
@@ -148,19 +154,84 @@ function startStaticServer(appPath, port = 0) {
   });
 }
 
-function startDevServer(appPath, port) {
+function safeProcessEnv(extra = {}) {
+  const tempRoot = extra.NEXUS_SIM_TEMP_ROOT ?? process.env.TMPDIR ?? "/tmp";
+  return {
+    HOME: tempRoot,
+    PATH: process.env.PATH,
+    TMPDIR: tempRoot,
+    ...extra,
+  };
+}
+
+function signalProcessTree(child, signal) {
+  if (!child?.pid || child.exitCode !== null) return;
+  try {
+    if (process.platform === "win32") child.kill(signal);
+    else process.kill(-child.pid, signal);
+  } catch (error) {
+    if (error.code !== "ESRCH") throw error;
+  }
+}
+
+function monitorChildMemory(child, limitMb) {
+  const state = { exceeded: false, latestMb: null, limitMb: Number(limitMb) || null, peakMb: 0 };
+  if (!state.limitMb || process.platform === "win32") return { snapshot: () => ({ ...state }), stop() {} };
+  const sample = () => {
+    execFile("ps", ["-o", "rss=", "-p", String(child.pid)], { timeout: 2000 }, (error, stdout) => {
+      if (error) return;
+      const rssKb = Number(String(stdout).trim());
+      if (!Number.isFinite(rssKb)) return;
+      state.latestMb = Number((rssKb / 1024).toFixed(2));
+      state.peakMb = Math.max(state.peakMb, state.latestMb);
+      if (state.latestMb > state.limitMb && !state.exceeded) {
+        state.exceeded = true;
+        signalProcessTree(child, "SIGTERM");
+      }
+    });
+  };
+  sample();
+  const timer = setInterval(sample, 1000);
+  timer.unref?.();
+  return {
+    snapshot: () => ({ ...state }),
+    stop: () => clearInterval(timer),
+  };
+}
+
+function stopChildProcess(child) {
+  if (!child || child.exitCode !== null) return Promise.resolve();
+  return new Promise((resolveClose) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(forceTimer);
+      clearTimeout(giveUpTimer);
+      resolveClose();
+    };
+    child.once("close", finish);
+    signalProcessTree(child, "SIGTERM");
+    const forceTimer = setTimeout(() => signalProcessTree(child, "SIGKILL"), 1500);
+    const giveUpTimer = setTimeout(finish, 3000);
+  });
+}
+
+function startDevServer(appPath, port, args = {}) {
   const cwd = pathForApp(appPath).root;
   const child = spawn("npm", ["run", "dev", "--", "--host", "127.0.0.1", "--port", String(port)], {
     cwd,
+    detached: process.platform !== "win32",
+    env: args.inheritEnv === false ? safeProcessEnv({ ...(args.env ?? {}), PORT: String(port) }) : { ...process.env, ...(args.env ?? {}) },
     shell: false,
   });
+  const memoryMonitor = monitorChildMemory(child, args.memoryLimitMb);
   return {
-    close: () =>
-      new Promise((resolveClose) => {
-        child.once("close", resolveClose);
-        child.kill();
-        setTimeout(resolveClose, 1500);
-      }),
+    close: async () => {
+      memoryMonitor.stop();
+      await stopChildProcess(child);
+    },
+    memoryMonitor,
     process: child,
     root: cwd,
     url: `http://127.0.0.1:${port}/`,
@@ -175,24 +246,24 @@ function startCommandServer(args, appPath) {
   if (!command) throw new Error("startServer args.command must be a non-empty string or array.");
 
   const cwd = resolve(args.cwd ?? pathForApp(appPath).root);
-  const env = {
-    ...process.env,
-    ...(args.env ?? {}),
-  };
+  const env = args.inheritEnv === false
+    ? safeProcessEnv(args.env ?? {})
+    : { ...process.env, ...(args.env ?? {}) };
   const child = spawn(command, commandArgs, {
     cwd,
+    detached: process.platform !== "win32",
     env,
     shell: false,
   });
+  const memoryMonitor = monitorChildMemory(child, args.memoryLimitMb);
   const url = args.url ?? `http://127.0.0.1:${Number(args.port ?? env.PORT ?? 3011)}/`;
 
   return {
-    close: () =>
-      new Promise((resolveClose) => {
-        child.once("close", resolveClose);
-        child.kill();
-        setTimeout(resolveClose, 1500);
-      }),
+    close: async () => {
+      memoryMonitor.stop();
+      await stopChildProcess(child);
+    },
+    memoryMonitor,
     process: child,
     root: cwd,
     url,
@@ -283,10 +354,12 @@ export function createPlaywrightAdapter(context = {}) {
     const videoDir = join(artifactDir, ".videos");
     mkdirSync(videoDir, { recursive: true });
     browserContext = await browser.newContext({
-      recordVideo: {
-        dir: videoDir,
-        size: { width: 1280, height: 720 },
-      },
+      ...(state.recordVideo || pendingVideoArtifact ? {
+        recordVideo: {
+          dir: videoDir,
+          size: { width: 1280, height: 720 },
+        },
+      } : {}),
       viewport: { width: 1280, height: 720 },
     });
     page = await browserContext.newPage();
@@ -343,12 +416,27 @@ export function createPlaywrightAdapter(context = {}) {
       browser = null;
     }
     if (serverHandle) {
+      syncProcessMetrics();
       await serverHandle.close().catch(() => {});
       serverHandle = null;
+    }
+    for (const processEntry of state.processes) {
+      if (!processEntry.exitedAt) {
+        processEntry.exitedAt = new Date().toISOString();
+        processEntry.status = "stopped";
+      }
     }
     state.browserOpen = false;
     state.server = null;
     if (traceError) throw traceError;
+  }
+
+  function syncProcessMetrics() {
+    const processId = serverHandle?.process?.pid;
+    const metrics = serverHandle?.memoryMonitor?.snapshot();
+    if (!processId || !metrics) return;
+    const entry = state.processes.find((processEntry) => processEntry.pid === processId);
+    if (entry) entry.memory = metrics;
   }
 
   async function reset() {
@@ -379,6 +467,7 @@ export function createPlaywrightAdapter(context = {}) {
             state.processes.push({
               kind: "command",
               pid: serverHandle.process.pid,
+              status: "running",
               url: serverHandle.url,
             });
           }
@@ -386,11 +475,12 @@ export function createPlaywrightAdapter(context = {}) {
           serverHandle.process.stderr.on("data", (data) => log(`command stderr: ${data.toString().trim()}`));
           await waitForHttp(args.waitUrl ?? serverHandle.url, Number(args.timeoutMs ?? 20000));
         } else if (state.launchMode === "dev-server") {
-          serverHandle = startDevServer(state.attachedAppPath, port);
+          serverHandle = startDevServer(state.attachedAppPath, port, args);
           if (serverHandle.process?.pid) {
             state.processes.push({
               kind: "dev-server",
               pid: serverHandle.process.pid,
+              status: "running",
               url: serverHandle.url,
             });
           }
@@ -648,7 +738,7 @@ export function createPlaywrightAdapter(context = {}) {
         await page.screenshot({ fullPage: args.fullPage !== false, path });
         state.artifacts.push(path);
         check("screenshotCaptured", existsSync(path), path);
-        return;
+        return { artifact: path };
       }
       case "recordVideo": {
         await ensureBrowser();
@@ -797,6 +887,88 @@ export function createPlaywrightAdapter(context = {}) {
         state.sessionSummary += `advanceSimTime seconds=${args.seconds ?? 60} ok=${result.ok === true}\n`;
         return;
       }
+      case "worldManifest": {
+        await ensureBrowser();
+        await page.waitForFunction(() => typeof window.__NEXUS_WORLD_COMMANDS__?.manifest === "function", null, {
+          timeout: Number(args.timeoutMs ?? 10000),
+        }).catch(() => null);
+        const manifest = await page.evaluate(() => {
+          const bridge = window.__NEXUS_WORLD_COMMANDS__;
+          if (!bridge || typeof bridge.manifest !== "function") return null;
+          return bridge.manifest();
+        });
+        if (!manifest) {
+          const error = new Error("Page does not expose window.__NEXUS_WORLD_COMMANDS__.manifest().");
+          error.code = "WORLD_BRIDGE_UNAVAILABLE";
+          throw error;
+        }
+        check("worldManifest", true, manifest.version ?? "unknown");
+        return manifest;
+      }
+      case "worldInvoke": {
+        await ensureBrowser();
+        const result = await page.evaluate(async ({ action, commandArgs }) => {
+          const bridge = window.__NEXUS_WORLD_COMMANDS__;
+          if (!bridge || typeof bridge.execute !== "function") {
+            return { ok: false, error: { code: "WORLD_BRIDGE_UNAVAILABLE", message: "World command bridge is unavailable." } };
+          }
+          try {
+            return await bridge.execute({ action, args: commandArgs });
+          } catch (error) {
+            return { ok: false, error: { code: error?.code ?? "WORLD_BRIDGE_ERROR", message: error?.message ?? String(error) } };
+          }
+        }, { action: args.action, commandArgs: args.args ?? {} });
+        if (result?.ok === false) {
+          const error = new Error(result.error?.message ?? `World action failed: ${args.action}`);
+          error.code = result.error?.code ?? "WORLD_ACTION_FAILED";
+          throw error;
+        }
+        check("worldInvoke", true, args.action);
+        return result;
+      }
+      case "worldObserve": {
+        await ensureBrowser();
+        const result = await page.evaluate(() => {
+          const bridge = window.__NEXUS_WORLD_COMMANDS__;
+          if (!bridge || typeof bridge.observe !== "function") return null;
+          return bridge.observe();
+        });
+        if (!result) {
+          const error = new Error("World command bridge cannot observe state.");
+          error.code = "WORLD_BRIDGE_UNAVAILABLE";
+          throw error;
+        }
+        return result;
+      }
+      case "worldSnapshot": {
+        await ensureBrowser();
+        const result = await page.evaluate(() => {
+          const bridge = window.__NEXUS_WORLD_COMMANDS__;
+          if (!bridge || typeof bridge.snapshot !== "function") return null;
+          return bridge.snapshot();
+        });
+        if (!result) {
+          const error = new Error("World command bridge cannot capture snapshots.");
+          error.code = "WORLD_BRIDGE_UNAVAILABLE";
+          throw error;
+        }
+        return result;
+      }
+      case "worldRestore": {
+        await ensureBrowser();
+        const result = await page.evaluate(async (snapshot) => {
+          const bridge = window.__NEXUS_WORLD_COMMANDS__;
+          if (!bridge || typeof bridge.restore !== "function") return null;
+          return bridge.restore(snapshot);
+        }, args.snapshot);
+        if (!result) {
+          const error = new Error("World command bridge could not restore the supplied snapshot.");
+          error.code = "WORLD_RESTORE_FAILED";
+          throw error;
+        }
+        check("worldRestore", true, "snapshot restored");
+        return result;
+      }
       case "summarizeSession":
         state.durationMs = now() - startedAt;
         state.sessionSummary += `durationMs=${state.durationMs} checks=${state.checks.length} errors=${state.consoleErrors.length}\n`;
@@ -813,11 +985,13 @@ export function createPlaywrightAdapter(context = {}) {
   }
 
   function getState() {
+    syncProcessMetrics();
     state.durationMs = now() - startedAt;
     return clone(state);
   }
 
   function getOutput() {
+    syncProcessMetrics();
     state.durationMs = now() - startedAt;
     return clone({
       artifactDir: state.artifactDir,

@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "nexus.execution-profile.v1",
+  "adapter": "browser",
+  "allowedWorkspaceRoots": [],
+  "allowDestructive": false,
+  "environmentAllowlist": [],
+  "outputRoots": [
+    "output",
+    "artifacts",
+    "logs",
+    "temp"
+  ],
+  "resourceLimits": {
+    "memory": "best-effort"
+  }
+}
