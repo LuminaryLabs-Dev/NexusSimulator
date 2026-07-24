@@ -1,4 +1,6 @@
-# Goal
+# Durable Product Goal
+
+This file owns the long-term product outcome and acceptance criteria. Current execution state and the next bounded task are tracked in `../.agent/goal.md` and its active goal packet.
 
 Build a reusable procedural world-asset library through bounded Codex planning, critique, revision, algorithm search, seed search, failure filtering, confidence promotion, and durable lessons.
 

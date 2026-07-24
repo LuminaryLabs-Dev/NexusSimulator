@@ -4,6 +4,8 @@ Status: active
 
 ## Purpose
 
+This file owns current execution state. `NexusSimulator-V1/goal.md` owns the durable product outcome.
+
 Develop NexusSimulator toward `0.0.3` through small validated feature branches while preserving `0.0.1` and `0.0.2` as frozen release lines.
 
 ## Current Success Criteria
@@ -17,7 +19,7 @@ Develop NexusSimulator toward `0.0.3` through small validated feature branches w
 
 ## Next Goal
 
-Define the first focused `0.0.3` feature goal before implementation.
+Continue `.agent/goal-packets/007-world-video-loop.md` one reviewed place or one bounded repair at a time.
 
 ## Release State
 

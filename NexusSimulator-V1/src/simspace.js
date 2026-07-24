@@ -435,15 +435,16 @@ export async function runEventsInSimSpace(env, events, options = {}) {
   };
 }
 
-export async function runScenarioInSimSpace(envName, scenarioName, simtimeOverride) {
+export async function runScenarioInSimSpace(envName, scenarioName, simtimeOverride, options = {}) {
   const env = loadEnvRecord(envName);
   const events = loadScenarioEvents(envName, scenarioName).map(ensureEventShape);
   const simtimeId = simtimeOverride ?? env.simtime ?? "headless";
   return runEventsInSimSpace(env, events, {
     envName,
+    manifest: options.manifest,
     scenarioName,
     simtimeId,
-    throwOnFailure: true,
+    throwOnFailure: options.throwOnFailure ?? true,
   });
 }
 

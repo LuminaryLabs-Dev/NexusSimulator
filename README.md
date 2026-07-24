@@ -72,6 +72,18 @@ orchestrator = future composition layer
 
 Use `validate` or `simspace run` for safe validation. `scenario run` is an advanced direct runner that can touch an attached source path.
 
+## Nexus Engine Integration
+
+Nexus Engine's Core Headless Editor can load NexusSimulator as an insertable adapter. The Engine owns the bounded nine-stage control lifecycle; NexusSimulator validates one typed command, executes it in a disposable SimSpace, and returns normalized evidence. This direct integration adds no HTTP server, subprocess RPC, or Engine dependency on NexusSimulator.
+
+```bash
+node ./src/cli.js headless run \
+  --request ./request.json \
+  --nexus-engine-root /path/to/NexusEngine
+```
+
+WorldFactory generation, human review, and typed procedural revision use separate Headless Editor runs. Invalid commands and settings stop at validation, while failed or unchanged revisions retain the prior reviewable candidate.
+
 ## Supported Surfaces
 
 - Playwright browser validation for static HTML, Vite, canvas, Three.js, and A-Frame targets.

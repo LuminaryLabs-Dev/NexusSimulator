@@ -44,8 +44,12 @@ import { runScenarioInSimSpace } from "./simspace.js";
 import { runScenarioInSimSpaceChunked } from "./simspace.js";
 import {
   inspectToolAction,
+  listWorldFactoryCapabilitiesAction,
   listToolActions,
+  loadNexusSimulatorHeadlessRequest,
+  planWorldPromptAction,
   runAgentShowcaseAction,
+  runNexusSimulatorHeadlessRequest,
   runWorldEditorSessionAction,
   runKitContractProofAction,
   runKitRuntimeProofAction,
@@ -62,6 +66,12 @@ import {
   reportLogs,
   reportSummary,
 } from "./report-service.js";
+import {
+  listWorldVideoPlaces,
+  makeWorldVideo,
+  recordWorldVideoReview,
+  worldVideoStatus,
+} from "./world-video-loop.js";
 
 function usage() {
   console.log([
@@ -125,10 +135,17 @@ function usageAll() {
     "  nexus-sim scenario show <env> <scenario>",
     "  nexus-sim scenario check <env> <scenario> [--simtime <id>]",
     "  nexus-sim scenario run <env> <scenario> [--simtime <id>]",
+    "  nexus-sim headless run --request <path> [--nexus-engine-root <path>]",
     "  nexus-sim factory list",
     "  nexus-sim tools run scene.build-proof --profile <path> [--run-id <id>] [--viewport 1280x720] [--fps 30]",
-    "  nexus-sim tools run scene.agent-showcase --profile <path> [--run-id <id>] [--viewport 1920x1080] [--fps 30] [--duration <seconds>] [--nexus-engine-root <path>] [--nexus-protokits-root <path>] [--use-codex] [--live-loop] [--output <path>]",
+    "  nexus-sim world-domain capabilities [--profile <path>]",
+    "  nexus-sim world-domain plan --prompt <text> [--seed <value>] [--agent-plan <path>] [--profile <path>]",
+    "  nexus-sim tools run scene.agent-showcase (--profile <path> | --prompt <text>) [--seed <value>] [--agent-plan <path>] [--run-id <id>] [--viewport 1920x1080] [--fps 30] [--duration <seconds>] [--capture-mode deterministic|realtime] [--nexus-engine-root <path>] [--nexus-protokits-root <path>] [--use-codex] [--live-loop] [--output <path>]",
     "  nexus-sim tools run scene.editor-session --profile <path> [--run-id <id>] [--viewport 1920x1080] [--duration 305] [--fps 24] [--capture-style human|direct] [--output <path>]",
+    "  nexus-sim world-video places",
+    "  nexus-sim world-video make [--prompt <text>] [--seed <value>] [--viewport 720x1280] [--change <text>] [--addresses <issue-id>]",
+    "  nexus-sim world-video review --decision pass|revise|blocked [--iteration <id>] [--area <name>] [--issue <text>] [--severity low|medium|high] [--note <text>]",
+    "  nexus-sim world-video status",
     "  nexus-sim factory config validate <path>",
     "  nexus-sim factory init <run-id> --factory <FactoryName> --seed <seed> --profile <profile> [--theme <text>] [--settings <json>] [--config <path>]",
     "  nexus-sim factory run <run-id>",
@@ -290,6 +307,74 @@ async function main(argv) {
     return;
   }
 
+  if (scope === "world-video") {
+    if (verb === "places") {
+      printValue({ places: listWorldVideoPlaces() });
+      return;
+    }
+    if (verb === "status") {
+      printValue(worldVideoStatus());
+      return;
+    }
+    if (verb === "make") {
+      const prompt = parseNamedOption(rest, "--prompt");
+      const seed = parseNamedOption(rest, "--seed");
+      const viewport = parseNamedOption(rest, "--viewport") ?? "720x1280";
+      const change = parseNamedOption(rest, "--change");
+      const addresses = parseNamedOption(rest, "--addresses");
+      printValue(await makeWorldVideo({ addresses, change, prompt, seed, viewport }));
+      return;
+    }
+    if (verb === "review") {
+      const decision = parseNamedOption(rest, "--decision");
+      const iterationId = parseNamedOption(rest, "--iteration");
+      const area = parseNamedOption(rest, "--area") ?? "visual-quality";
+      const issue = parseNamedOption(rest, "--issue");
+      const severity = parseNamedOption(rest, "--severity") ?? "medium";
+      const note = parseNamedOption(rest, "--note");
+      if (!decision) throw new Error("Usage: nexus-sim world-video review --decision pass|revise|blocked [...options]");
+      if (!["low", "medium", "high"].includes(severity)) throw new Error("--severity must be low, medium, or high.");
+      printValue(recordWorldVideoReview({ area, decision, issue, iterationId, note, severity }));
+      return;
+    }
+    throw new Error("Usage: nexus-sim world-video <places|make|review|status> [...options]");
+  }
+
+  if (scope === "headless") {
+    if (verb !== "run") {
+      throw new Error("Usage: nexus-sim headless run --request <path> [--nexus-engine-root <path>]");
+    }
+    const requestPath = parseNamedOption(rest, "--request");
+    const nexusEngineRoot = parseNamedOption(rest, "--nexus-engine-root");
+    if (!requestPath) {
+      throw new Error("Usage: nexus-sim headless run --request <path> [--nexus-engine-root <path>]");
+    }
+    const loaded = loadNexusSimulatorHeadlessRequest(requestPath);
+    const result = await runNexusSimulatorHeadlessRequest({
+      nexusEngineRoot,
+      request: loaded.request,
+    });
+    printValue(result);
+    if (!result.ok) process.exitCode = 1;
+    return;
+  }
+
+  if (scope === "world-domain") {
+    const profilePath = parseNamedOption(rest, "--profile");
+    if (verb === "capabilities") {
+      printValue(listWorldFactoryCapabilitiesAction({ profilePath }));
+      return;
+    }
+    if (verb === "plan") {
+      const prompt = parseNamedOption(rest, "--prompt");
+      const seed = parseNamedOption(rest, "--seed");
+      const agentPlanPath = parseNamedOption(rest, "--agent-plan");
+      printValue(planWorldPromptAction({ agentPlanPath, profilePath, prompt, seed }));
+      return;
+    }
+    throw new Error("Usage: nexus-sim world-domain <capabilities|plan> [...options]");
+  }
+
   if (scope === "tools" && (!verb || verb === "list")) {
     for (const tool of listToolActions()) {
       console.log(`${tool.id} ${tool.domain} ${tool.medium}`);
@@ -326,6 +411,10 @@ async function main(argv) {
     }
     if (toolId === "scene.agent-showcase") {
       const profilePath = parseNamedOption(toolArgs, "--profile");
+      const prompt = parseNamedOption(toolArgs, "--prompt");
+      const seed = parseNamedOption(toolArgs, "--seed");
+      const domainPlanPath = parseNamedOption(toolArgs, "--agent-plan");
+      const captureMode = parseNamedOption(toolArgs, "--capture-mode") ?? "deterministic";
       const runId = parseNamedOption(toolArgs, "--run-id");
       const viewport = parseNamedOption(toolArgs, "--viewport") ?? "1920x1080";
       const fps = parseNumberOption(toolArgs, "--fps", 30);
@@ -335,7 +424,7 @@ async function main(argv) {
       const nexusProtoKitsRoot = parseNamedOption(toolArgs, "--nexus-protokits-root") ?? process.env.NEXUS_PROTOKITS_ROOT;
       const useCodex = toolArgs.includes("--use-codex");
       const liveLoop = toolArgs.includes("--live-loop");
-      const result = await runAgentShowcaseAction({ duration, fps, liveLoop, nexusEngineRoot, nexusProtoKitsRoot, outputPath, profilePath, runId, useCodex, viewport });
+      const result = await runAgentShowcaseAction({ captureMode, domainPlanPath, duration, fps, liveLoop, nexusEngineRoot, nexusProtoKitsRoot, outputPath, profilePath, prompt, runId, seed, useCodex, viewport });
       printValue(result);
       if (result.status !== "passed") process.exitCode = 1;
       return;

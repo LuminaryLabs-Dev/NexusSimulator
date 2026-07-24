@@ -61,7 +61,8 @@ function generateAssetLibrary(profile, runDir, loopPlan) {
   if (!config?.algorithms || !Array.isArray(config.failureFilters)) throw new Error("WorldFactory profile requires generation algorithms and failureFilters.");
   const lessonsPath = resolve(runDir, "..", "..", "..", "lessons", "world-factory-lessons.jsonl");
   ensureDir(resolve(lessonsPath, ".."));
-  const lessons = loadLessons(lessonsPath);
+  const reusePriorLessons = profile.generationPolicy?.scratch?.reusePriorGenerationLessons === true;
+  const lessons = reusePriorLessons ? loadLessons(lessonsPath) : [];
   const failures = [];
   const assets = profile.steps.map((step, stepIndex) => {
     const algorithms = config.algorithms[step.type];
@@ -87,14 +88,30 @@ function generateAssetLibrary(profile, runDir, loopPlan) {
         algorithm: selected.algorithm, seed: selected.seed, confidence: selected.confidence, failures: [], accepted: true, outcome: "promoted",
       })}\n`);
     }
-    loopPlan[stepIndex] = { ...loopPlan[stepIndex], attempts, selectedAlgorithm: selected?.algorithm || null, selectedSeed: selected?.seed || null, confidence: selected?.confidence || 0 };
-    return { id: step.id, type: step.type, attempts, selected, status: selected ? "provisionally-approved" : "rejected" };
+    loopPlan[stepIndex] = {
+      ...loopPlan[stepIndex],
+      generationRecipe: step.generationRecipe || null,
+      attempts,
+      selectedAlgorithm: selected?.algorithm || null,
+      selectedSeed: selected?.seed || null,
+      confidence: selected?.confidence || 0,
+    };
+    return {
+      id: step.id,
+      type: step.type,
+      generationRecipe: step.generationRecipe || null,
+      attempts,
+      selected,
+      status: selected ? "provisionally-approved" : "rejected",
+    };
   });
   const manifest = {
     schemaVersion: "nexus.world-asset-library.v1",
     status: assets.every((asset) => asset.selected) ? "provisionally-approved" : "rejected",
     confidenceThreshold: config.confidenceThreshold,
     failureFilters: config.failureFilters,
+    generationPolicy: profile.generationPolicy || null,
+    priorLessonInput: { enabled: reusePriorLessons, count: lessons.length },
     assets,
     failures,
     lessonsPath,
@@ -327,6 +344,7 @@ export function compileWorldFactoryPlan(profile) {
     harness: profile.harness,
     projectName: profile.projectName,
     seed: profile.seed,
+    worldDomainPlan: profile.worldDomainPlan || null,
     agents: profile.agents,
     concurrency: {
       planning: "staggered-parallel",
@@ -429,6 +447,7 @@ export async function runWorldFactoryHarness(profile, runDir, { useCodex = false
   const revisionPassed = !useCodex || (review.status === "passed" && revisions.length === profile.agents.length && revisions.every((entry) => entry.status === "passed"));
   const report = {
     status: planningPassed && revisionPassed && ["provisionally-approved", "not-requested"].includes(library.status) ? "passed" : "failed",
+    worldDomainPlan: profile.worldDomainPlan || null,
     planPath,
     loopPlanPath,
     loopPlan,

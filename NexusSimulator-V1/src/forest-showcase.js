@@ -21,6 +21,16 @@ export function createForestShowcaseHtml(profile) {
     .asset-copy .agent { margin: 0 0 7px; color: #8be7b4; font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: 0; }
     .asset-copy h2 { margin: 0; font-size: 32px; line-height: 1.08; letter-spacing: 0; }
     .asset-copy .phase { margin: 10px 0 0; color: rgba(255,255,255,.72); font: 700 14px/1.2 Menlo, Monaco, Consolas, monospace; letter-spacing: 0; }
+    .mesh-program { position: fixed; z-index: 3; top: 54px; right: 48px; width: 330px; padding: 18px; border: 1px solid rgba(255,255,255,.18); border-radius: 6px; background: rgba(10,18,16,.9); box-shadow: 0 18px 48px rgba(0,0,0,.3); opacity: 0; pointer-events: none; }
+    .mesh-program .kicker { margin: 0 0 6px; color: #8be7b4; font: 800 11px/1.2 Menlo, Monaco, Consolas, monospace; text-transform: uppercase; }
+    .mesh-program h3 { margin: 0 0 15px; font-size: 20px; line-height: 1.12; }
+    .mesh-program .program-stage { margin: 0 0 14px; color: rgba(255,255,255,.62); font: 700 11px/1.3 Menlo, Monaco, Consolas, monospace; }
+    .program-controls { display: grid; gap: 11px; }
+    .program-control { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 5px 12px; align-items: center; color: rgba(255,255,255,.7); font-size: 12px; font-weight: 700; }
+    .program-control output { color: #fff; font: 700 11px/1 Menlo, Monaco, Consolas, monospace; }
+    .program-track { grid-column: 1 / -1; height: 4px; overflow: hidden; border-radius: 2px; background: rgba(255,255,255,.13); }
+    .program-track span { display: block; width: 0; height: 100%; background: #f1b85b; }
+    .mesh-flash { position: fixed; z-index: 2; inset: 0; opacity: 0; pointer-events: none; background: rgba(255,234,169,.3); }
     .transition-copy { inset: 0; display: grid; align-content: center; justify-content: center; text-align: center; }
     .transition-copy h2 { margin: 0; font-size: 48px; letter-spacing: 0; }
     .transition-copy p { margin: 13px 0 0; color: rgba(255,255,255,.72); font-size: 20px; letter-spacing: 0; }
@@ -64,6 +74,21 @@ export function createForestShowcaseHtml(profile) {
       .editor-header, .editor-section, .editor-actions { padding-left: 16px; padding-right: 16px; }
       .editor-header h1 { font-size: 21px; }
     }
+    @media (max-aspect-ratio: 3 / 4) {
+      .intro { left: 40px; right: 40px; top: 104px; }
+      .intro h1 { font-size: 46px; }
+      .intro p { max-width: 560px; font-size: 21px; line-height: 1.25; }
+      .intro .credit { font-size: 14px; }
+      .asset-copy { left: 40px; right: 40px; bottom: 196px; max-width: none; }
+      .asset-copy h2 { font-size: 30px; }
+      .transition-copy { padding: 0 40px; }
+      .transition-copy h2 { font-size: 42px; }
+      .completion { left: 0; right: 0; bottom: 176px; padding: 22px 40px 24px; background: rgba(5, 12, 10, .72); border-top: 1px solid rgba(255,255,255,.16); border-bottom: 1px solid rgba(255,255,255,.1); backdrop-filter: blur(6px); }
+      .completion h2 { max-width: 560px; font-size: 38px; }
+      .completion p { max-width: 560px; font-size: 18px; line-height: 1.35; }
+      .world-type-control { top: 46px; right: 40px; }
+      .mesh-program { top: 92px; left: 40px; right: 40px; width: auto; }
+    }
   </style>
 </head>
 <body>
@@ -80,13 +105,20 @@ export function createForestShowcaseHtml(profile) {
     <h2></h2>
     <p class="phase"></p>
   </section>
+  <section class="mesh-program" aria-label="Procedural mesh settings">
+    <p class="kicker">Agent mesh program</p>
+    <h3></h3>
+    <p class="program-stage"></p>
+    <div class="program-controls"></div>
+  </section>
+  <div class="mesh-flash" aria-hidden="true"></div>
   <section class="transition-copy">
-    <h2>15 assets validated</h2>
+    <h2>${profile.steps.length} assets validated</h2>
     <p>Composing <span class="world-name">${profile.projectName}</span></p>
   </section>
   <section class="completion">
     <h2>A world built from proven parts.</h2>
-    <p>${profile.harness.name} / 15 validated assets / 15 world commits</p>
+    <p>${profile.harness.name} / ${profile.steps.length} validated assets / ${profile.steps.length} world commits</p>
   </section>
   <label class="world-type-control">
     World type
@@ -177,6 +209,21 @@ export function createForestShowcaseHtml(profile) {
     let activeWorldType = worldTypes[activeWorldTypeId] || Object.values(worldTypes)[0];
     let activeWorldStructureId = worldStructures[requestedWorldStructure] ? requestedWorldStructure : profile.defaultWorldStructure;
     let activeWorldStructure = worldStructures[activeWorldStructureId] || Object.values(worldStructures)[0];
+    const worldPlan = profile.worldPlan || null;
+    const domainRequirements = Array.isArray(profile.worldDomainPlan?.requirements)
+      ? profile.worldDomainPlan.requirements
+      : [];
+    const plannedCapabilities = new Set(domainRequirements.map((requirement) => requirement.capabilityId));
+    const domainPlannedWorld = Boolean(profile.worldDomainPlan);
+    const routeDetailRequested = [...plannedCapabilities].some((capabilityId) => /(?:path|route|trail)/i.test(capabilityId));
+    const terrainPlan = worldPlan?.terrain || {
+      amplitudeX: 0.42, amplitudeZ: 0.34, diagonalAmplitude: 0.16,
+      frequencyX: 0.33, frequencyZ: 0.41, diagonalFrequency: 0.72,
+      phaseX: 0, phaseZ: 0, diagonalPhase: 0, riverValleyDepth: 0.72,
+    };
+    const riverPlan = worldPlan?.river || null;
+    const trailPlan = worldPlan?.trail || null;
+    const riverEnabled = profile.environment?.river !== false;
     const canvas = document.getElementById("showcase");
     const capturePointer = document.querySelector(".capture-pointer");
     const intro = document.querySelector(".intro");
@@ -184,6 +231,11 @@ export function createForestShowcaseHtml(profile) {
     const agentCopy = document.querySelector(".asset-copy .agent");
     const titleCopy = document.querySelector(".asset-copy h2");
     const phaseCopy = document.querySelector(".asset-copy .phase");
+    const meshProgramPanel = document.querySelector(".mesh-program");
+    const meshProgramTitle = document.querySelector(".mesh-program h3");
+    const meshProgramStage = document.querySelector(".mesh-program .program-stage");
+    const meshProgramControls = document.querySelector(".program-controls");
+    const meshFlash = document.querySelector(".mesh-flash");
     const transitionCopy = document.querySelector(".transition-copy");
     const completion = document.querySelector(".completion");
     const worldTypeControl = document.querySelector(".world-type-control");
@@ -222,11 +274,42 @@ export function createForestShowcaseHtml(profile) {
       };
     }
 
+    function riverCenterX(z) {
+      const points = riverPlan?.path;
+      if (!Array.isArray(points) || points.length < 2) return 0;
+      if (z <= points[0].z) return points[0].x;
+      if (z >= points[points.length - 1].z) return points[points.length - 1].x;
+      for (let index = 0; index < points.length - 1; index += 1) {
+        const left = points[index], right = points[index + 1];
+        if (z < left.z || z > right.z) continue;
+        return lerp(left.x, right.x, (z - left.z) / Math.max(0.0001, right.z - left.z));
+      }
+      return 0;
+    }
+
     function woundGeometry(positions, indices, algorithm) {
       const geometry = new THREE.BufferGeometry();
       geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
       geometry.setIndex(indices);
       geometry.computeVertexNormals();
+      geometry.computeBoundingBox();
+      const bounds = geometry.boundingBox;
+      const span = bounds.getSize(new THREE.Vector3());
+      const position = geometry.getAttribute("position");
+      const normal = geometry.getAttribute("normal");
+      const uvs = [];
+      for (let index = 0; index < position.count; index += 1) {
+        const x = position.getX(index), y = position.getY(index), z = position.getZ(index);
+        const nx = Math.abs(normal.getX(index)), ny = Math.abs(normal.getY(index)), nz = Math.abs(normal.getZ(index));
+        if (ny >= nx && ny >= nz) {
+          uvs.push((x - bounds.min.x) / Math.max(span.x, 0.0001), (z - bounds.min.z) / Math.max(span.z, 0.0001));
+        } else if (nx >= nz) {
+          uvs.push((z - bounds.min.z) / Math.max(span.z, 0.0001), (y - bounds.min.y) / Math.max(span.y, 0.0001));
+        } else {
+          uvs.push((x - bounds.min.x) / Math.max(span.x, 0.0001), (y - bounds.min.y) / Math.max(span.y, 0.0001));
+        }
+      }
+      geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
       geometry.userData.topology = "custom-wound-triangles";
       geometry.userData.algorithm = algorithm;
       geometry.userData.triangleCount = indices.length / 3;
@@ -246,6 +329,61 @@ export function createForestShowcaseHtml(profile) {
         indices.push(offset, offset + 1, offset + 2, offset, offset + 2, offset + 3);
       }
       return woundGeometry(positions, indices, "box-wound-v1");
+    }
+
+    function triangleWedge(widthBottom, widthTop, height, depth) {
+      const bottom = widthBottom / 2, top = widthTop / 2, y = height / 2, z = depth / 2;
+      const positions = [
+        -bottom,-y,z, bottom,-y,z, top,y,z, -top,y,z,
+        bottom,-y,-z, -bottom,-y,-z, -top,y,-z, top,y,-z,
+        -bottom,-y,-z, -bottom,-y,z, -top,y,z, -top,y,-z,
+        bottom,-y,z, bottom,-y,-z, top,y,-z, top,y,z,
+        -top,y,z, top,y,z, top,y,-z, -top,y,-z,
+        -bottom,-y,-z, bottom,-y,-z, bottom,-y,z, -bottom,-y,z,
+      ];
+      const indices = [];
+      for (let face = 0; face < 6; face += 1) {
+        const offset = face * 4;
+        indices.push(offset, offset + 1, offset + 2, offset, offset + 2, offset + 3);
+      }
+      return woundGeometry(positions, indices, "wedge-wound-v1");
+    }
+
+    function beveledQuadPrism(points, depth, bevel, algorithm) {
+      const center = points.reduce((result, point) => [result[0] + point[0] / points.length, result[1] + point[1] / points.length], [0, 0]);
+      const inset = points.map((point) => {
+        const dx = point[0] - center[0], dy = point[1] - center[1];
+        const length = Math.max(0.0001, Math.hypot(dx, dy));
+        const scale = Math.max(0.55, (length - bevel) / length);
+        return [center[0] + dx * scale, center[1] + dy * scale];
+      });
+      const front = depth * 0.5;
+      const shoulder = Math.max(0.01, front - bevel);
+      const rings = [
+        { points: inset, z: front },
+        { points, z: shoulder },
+        { points, z: -shoulder },
+        { points: inset, z: -front },
+      ];
+      const positions = rings.flatMap((ring) => ring.points.flatMap((point) => [point[0], point[1], ring.z]));
+      const indices = [0, 1, 2, 0, 2, 3, 12, 14, 13, 12, 15, 14];
+      for (let ring = 0; ring < rings.length - 1; ring += 1) {
+        const left = ring * 4, right = (ring + 1) * 4;
+        for (let side = 0; side < 4; side += 1) {
+          const next = (side + 1) % 4;
+          indices.push(left + side, right + side, right + next, left + side, right + next, left + next);
+        }
+      }
+      return woundGeometry(positions, indices, algorithm);
+    }
+
+    function beveledBlock(width, height, depth, bevel, algorithm) {
+      return beveledQuadPrism([
+        [-width * 0.5, -height * 0.5],
+        [width * 0.5, -height * 0.5],
+        [width * 0.5, height * 0.5],
+        [-width * 0.5, height * 0.5],
+      ], depth, bevel, algorithm);
     }
 
     function triangleCylinder(radiusTop, radiusBottom, height, segments = 12) {
@@ -391,7 +529,53 @@ export function createForestShowcaseHtml(profile) {
       return woundGeometry(positions, indices, "torus-wound-v1");
     }
 
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true, powerPreference: "high-performance" });
+    function meshProgramSettings(step, override = null) {
+      return override || step.meshProgram?.settings || {};
+    }
+
+    function executeMeshProgram(root, step, settingsOverride = null) {
+      const program = step.meshProgram;
+      if (!program) return root;
+      const settings = meshProgramSettings(step, settingsOverride);
+      const amplitude = Number(settings.waveAmplitude || 0);
+      const frequency = Number(settings.waveFrequency || 1);
+      const phase = hash(program.programId) / 4294967295 * Math.PI * 2;
+      root.userData.meshProgram = {
+        algorithm: program.algorithm,
+        digest: program.digest,
+        method: program.method,
+        programId: program.programId,
+        settings: { ...settings },
+      };
+      root.traverse((object) => {
+        if (!object.isMesh || !object.geometry?.getAttribute("position")) return;
+        const geometry = object.geometry;
+        const position = geometry.getAttribute("position");
+        if (!geometry.userData.programBasePositions) {
+          geometry.userData.programBasePositions = Array.from(position.array);
+        }
+        const base = geometry.userData.programBasePositions;
+        for (let index = 0; index < position.count; index += 1) {
+          const x = base[index * 3], y = base[index * 3 + 1], z = base[index * 3 + 2];
+          const radial = Math.hypot(x, z);
+          const wave = Math.sin(y * frequency + radial * frequency * 0.62 + phase) * amplitude;
+          const radialScale = 1 + wave * 0.55;
+          const twist = wave * 0.18;
+          const cosine = Math.cos(twist), sine = Math.sin(twist);
+          const scaledX = x * radialScale, scaledZ = z * radialScale;
+          position.setXYZ(index, scaledX * cosine - scaledZ * sine, y + wave * 0.16, scaledX * sine + scaledZ * cosine);
+        }
+        position.needsUpdate = true;
+        geometry.computeVertexNormals();
+        geometry.computeBoundingBox();
+        geometry.computeBoundingSphere();
+        geometry.userData.meshProgramId = program.programId;
+        geometry.userData.meshProgramDigest = program.digest;
+      });
+      return root;
+    }
+
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: !captureMode, powerPreference: "high-performance" });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.shadowMap.enabled = true;
@@ -403,6 +587,7 @@ export function createForestShowcaseHtml(profile) {
     scene.background = new THREE.Color(0x111816);
     scene.fog = new THREE.FogExp2(activeWorldType.fog, 0.026);
     const camera = new THREE.PerspectiveCamera(43, 1, 0.1, 120);
+    const portraitFraming = () => camera.aspect < 0.75 ? 1.45 : 1;
 
     const sky = new THREE.Mesh(
       triangleSphere(62, 32, 20),
@@ -425,7 +610,7 @@ export function createForestShowcaseHtml(profile) {
     const sun = new THREE.DirectionalLight(activeWorldType.sun, 3.8);
     sun.position.set(-10, 16, 8);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.mapSize.set(captureMode ? 1024 : 2048, captureMode ? 1024 : 2048);
     sun.shadow.camera.left = -18;
     sun.shadow.camera.right = 18;
     sun.shadow.camera.top = 18;
@@ -436,11 +621,89 @@ export function createForestShowcaseHtml(profile) {
     rim.position.set(10, 9, -12);
     scene.add(rim);
 
+    function textureFromPixels(pixels, size, colorSpace = THREE.NoColorSpace) {
+      const textureCanvas = document.createElement("canvas");
+      textureCanvas.width = size;
+      textureCanvas.height = size;
+      const context = textureCanvas.getContext("2d");
+      context.putImageData(new ImageData(pixels, size, size), 0, 0);
+      const texture = new THREE.CanvasTexture(textureCanvas);
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.wrapT = THREE.RepeatWrapping;
+      texture.repeat.set(3, 3);
+      texture.anisotropy = 8;
+      texture.colorSpace = colorSpace;
+      return texture;
+    }
+
+    function createProceduralPbrTextures() {
+      const appearance = profile.generationPolicy?.appearance;
+      if (appearance?.mode !== "procedural-pbr") return null;
+      const size = Math.max(64, Math.min(512, Number(appearance.runtimeFallbackResolution) || 512));
+      const heights = new Uint8ClampedArray(size * size);
+      const basePixels = new Uint8ClampedArray(size * size * 4);
+      const normalPixels = new Uint8ClampedArray(size * size * 4);
+      const roughnessPixels = new Uint8ClampedArray(size * size * 4);
+      const heightPixels = new Uint8ClampedArray(size * size * 4);
+      const seed = hash(profile.seed + ":procedural-pbr");
+      for (let y = 0; y < size; y += 1) {
+        for (let x = 0; x < size; x += 1) {
+          let grainHash = Math.imul(x + seed, 374761393) ^ Math.imul(y + seed, 668265263);
+          grainHash = Math.imul(grainHash ^ (grainHash >>> 13), 1274126177);
+          const grain = ((grainHash ^ (grainHash >>> 16)) >>> 0) / 4294967295;
+          const broad = Math.sin((x + seed % 97) * 0.043) * 0.22
+            + Math.sin((y + seed % 61) * 0.057) * 0.18
+            + Math.sin((x + y) * 0.019) * 0.14;
+          heights[y * size + x] = Math.round(clamp(0.5 + broad + (grain - 0.5) * 0.24) * 255);
+        }
+      }
+      const sample = (x, y) => heights[((y + size) % size) * size + ((x + size) % size)];
+      for (let y = 0; y < size; y += 1) {
+        for (let x = 0; x < size; x += 1) {
+          const pixel = (y * size + x) * 4;
+          const height = sample(x, y);
+          const dx = (sample(x + 1, y) - sample(x - 1, y)) / 255;
+          const dy = (sample(x, y + 1) - sample(x, y - 1)) / 255;
+          const length = Math.hypot(dx * 1.6, dy * 1.6, 1);
+          const tone = 188 + Math.round(height / 255 * 58);
+          basePixels.set([Math.min(255, tone + 6), tone, Math.max(0, tone - 8), 255], pixel);
+          normalPixels.set([
+            Math.round((-dx * 1.6 / length * 0.5 + 0.5) * 255),
+            Math.round((-dy * 1.6 / length * 0.5 + 0.5) * 255),
+            Math.round((1 / length * 0.5 + 0.5) * 255),
+            255,
+          ], pixel);
+          const roughness = Math.round(210 + (255 - height) * 0.16);
+          roughnessPixels.set([roughness, roughness, roughness, 255], pixel);
+          heightPixels.set([height, height, height, 255], pixel);
+        }
+      }
+      return {
+        baseColor: textureFromPixels(basePixels, size, THREE.SRGBColorSpace),
+        normal: textureFromPixels(normalPixels, size),
+        roughness: textureFromPixels(roughnessPixels, size),
+        height: textureFromPixels(heightPixels, size),
+        channels: appearance.textureChannels,
+        size,
+      };
+    }
+
+    const proceduralPbrTextures = createProceduralPbrTextures();
+
     function physical(color, options = {}) {
-      return new THREE.MeshPhysicalMaterial({
+      const useProceduralPbr = proceduralPbrTextures
+        && options.pbr !== false
+        && !options.transparent
+        && !options.transmission
+        && !options.emissive;
+      const surface = new THREE.MeshPhysicalMaterial({
         color,
         roughness: options.roughness ?? 0.55,
         metalness: options.metalness ?? 0.05,
+        map: useProceduralPbr ? proceduralPbrTextures.baseColor : null,
+        normalMap: useProceduralPbr ? proceduralPbrTextures.normal : null,
+        normalScale: useProceduralPbr ? new THREE.Vector2(0.42, 0.42) : new THREE.Vector2(1, 1),
+        roughnessMap: useProceduralPbr ? proceduralPbrTextures.roughness : null,
         transparent: Boolean(options.transparent),
         opacity: options.opacity ?? 1,
         transmission: options.transmission ?? 0,
@@ -449,9 +712,17 @@ export function createForestShowcaseHtml(profile) {
         emissiveIntensity: options.emissiveIntensity ?? 0,
         clearcoat: options.clearcoat ?? 0.12,
         clearcoatRoughness: options.clearcoatRoughness ?? 0.4,
+        flatShading: Boolean(options.flatShading),
         side: options.side ?? THREE.FrontSide,
         vertexColors: Boolean(options.vertexColors),
       });
+      surface.userData.pbr = useProceduralPbr ? {
+        generatedFromScratch: true,
+        channels: proceduralPbrTextures.channels,
+        resolution: proceduralPbrTextures.size,
+        stage: "reskin-after-geometry",
+      } : null;
+      return surface;
     }
 
     function mesh(geometry, surface) {
@@ -577,8 +848,13 @@ export function createForestShowcaseHtml(profile) {
     function terrainHeightAt(x, z) {
       const validatedHeight = validatedTerrainHeightAt(x, z);
       if (validatedHeight !== null) return validatedHeight;
-      const base = Math.sin(x * 0.33) * 0.42 + Math.cos(z * 0.41) * 0.34 + Math.sin((x + z) * 0.72) * 0.16;
-      const riverValley = Math.max(0, 1 - Math.abs(x) / 1.8) * 0.72;
+      const base = Math.sin(x * terrainPlan.frequencyX + terrainPlan.phaseX) * terrainPlan.amplitudeX
+        + Math.cos(z * terrainPlan.frequencyZ + terrainPlan.phaseZ) * terrainPlan.amplitudeZ
+        + Math.sin((x + z) * terrainPlan.diagonalFrequency + terrainPlan.diagonalPhase) * terrainPlan.diagonalAmplitude;
+      const riverDistance = Math.abs(x - riverCenterX(z));
+      const riverValley = riverEnabled
+        ? Math.max(0, 1 - riverDistance / Math.max(0.2, riverPlan?.width || 1.8)) * terrainPlan.riverValleyDepth
+        : 0;
       return base - riverValley;
     }
 
@@ -644,14 +920,35 @@ export function createForestShowcaseHtml(profile) {
       });
       forestWorld.add(validatedTerrainGroup);
     }
-    const river = mesh(trianglePlane(2.15, 18, 1, 24), physical(activeWorldType.river, { transparent: true, opacity: 0.78, transmission: 0.22, thickness: 0.5, roughness: 0.12, metalness: 0.08, clearcoat: 0.9 }));
-    river.rotation.x = -Math.PI / 2;
-    river.position.set(0, -0.26, 0.5);
-    river.visible = !nexusTerrain;
+    function riverGeometry() {
+      const points = riverPlan?.path || Array.from({ length: 21 }, (_, index) => ({ x: 0, z: -9 + index * 0.9 }));
+      const width = riverPlan?.width || 2.15;
+      const positions = [];
+      const indices = [];
+      for (let index = 0; index < points.length; index += 1) {
+        const previous = points[Math.max(0, index - 1)];
+        const next = points[Math.min(points.length - 1, index + 1)];
+        const tangentX = next.x - previous.x;
+        const tangentZ = next.z - previous.z;
+        const length = Math.max(0.0001, Math.hypot(tangentX, tangentZ));
+        const normalX = -tangentZ / length;
+        const normalZ = tangentX / length;
+        positions.push(points[index].x + normalX * width * 0.5, 0, points[index].z + normalZ * width * 0.5);
+        positions.push(points[index].x - normalX * width * 0.5, 0, points[index].z - normalZ * width * 0.5);
+        if (index < points.length - 1) {
+          const left = index * 2, right = left + 1, nextLeft = left + 2, nextRight = left + 3;
+          indices.push(left, nextLeft, right, right, nextLeft, nextRight);
+        }
+      }
+      return woundGeometry(positions, indices, "generated-meandering-river-strip");
+    }
+    const river = mesh(riverGeometry(), physical(activeWorldType.river, { transparent: true, opacity: 0.78, transmission: 0.22, thickness: 0.5, roughness: 0.12, metalness: 0.08, clearcoat: 0.9 }));
+    river.position.y = -0.2;
+    river.visible = riverEnabled && !nexusTerrain;
     forestWorld.add(river);
 
     const detailRandom = rng(profile.seed + ":terrain-detail");
-    const grassCount = 280;
+    const grassCount = activeWorldTypeId === "desert" ? 72 : 280;
     const grass = new THREE.InstancedMesh(
       triangleCone(0.075, 0.42, 4),
       physical(activeWorldType.detail, { roughness: 0.94, metalness: 0 }),
@@ -663,7 +960,10 @@ export function createForestShowcaseHtml(profile) {
     for (let index = 0; index < grassCount; index += 1) {
       let x = (detailRandom() - 0.5) * 25;
       const z = (detailRandom() - 0.5) * 17;
-      if (Math.abs(x) < 1.5) x += x < 0 ? -1.6 : 1.6;
+      const riverX = riverCenterX(z);
+      if (riverEnabled && Math.abs(x - riverX) < (riverPlan?.width || 2.15) * 0.75) {
+        x = riverX + (x < riverX ? -1 : 1) * ((riverPlan?.width || 2.15) * 0.75 + 0.35);
+      }
       const y = terrainHeightAt(x, z) + 0.16;
       detailQuaternion.setFromEuler(new THREE.Euler(0, detailRandom() * Math.PI * 2, (detailRandom() - 0.5) * 0.16));
       detailScale.set(0.75 + detailRandom() * 0.7, 0.65 + detailRandom() * 1.15, 0.75 + detailRandom() * 0.7);
@@ -679,7 +979,9 @@ export function createForestShowcaseHtml(profile) {
     const path = new THREE.Group();
     for (let index = 0; index < 23; index += 1) {
       const z = 7.6 - index * 0.66;
-      const x = (z > 2.8 ? 1.65 : z < 1.8 ? -1.55 : lerp(-1.55, 1.65, (z - 1.8))) + Math.sin(index * 0.8) * 0.16;
+      const x = trailPlan
+        ? trailPlan.offset + Math.sin(z * trailPlan.frequency + trailPlan.phase) * trailPlan.amplitude
+        : (z > 2.8 ? 1.65 : z < 1.8 ? -1.55 : lerp(-1.55, 1.65, z - 1.8)) + Math.sin(index * 0.8) * 0.16;
       const stone = mesh(triangleCylinder(0.32 + (index % 3) * 0.07, 0.36, 0.08, 9), physical(index % 2 ? 0x938f75 : 0x7f836e, { roughness: 0.96, metalness: 0 }));
       stone.position.set(x, terrainHeightAt(x, z) + 0.06, z);
       stone.rotation.y = index * 0.61;
@@ -687,33 +989,37 @@ export function createForestShowcaseHtml(profile) {
       path.add(stone);
     }
     forestWorld.add(path);
-    path.visible = !nexusTerrain;
+    path.visible = !nexusTerrain && (!domainPlannedWorld || routeDetailRequested);
 
     function treeAsset(step, mode, species) {
       const group = new THREE.Group();
       const random = rng((step.seed || profile.seed) + step.id + mode);
+      const settings = meshProgramSettings(step);
       const count = mode === "test" ? 1 : ({ oak: 5, birch: 7, pine: 9, willow: 4 }[species] || 4);
       for (let index = 0; index < count; index += 1) {
         const tree = new THREE.Group();
-        const height = (species === "pine" ? 4.2 : species === "willow" ? 3.5 : 3.7) * (0.82 + random() * 0.35);
+        const speciesHeight = species === "pine" ? 1.08 : species === "willow" ? 0.92 : 1;
+        const height = Number(settings.height || 3.7) * speciesHeight * (0.88 + random() * 0.24);
         const trunkColor = species === "birch" ? 0xd4d0bd : species === "willow" ? 0x6a5840 : 0x69462f;
-        const trunk = mesh(triangleCylinder(0.16, 0.28, height, 9), physical(trunkColor, { roughness: 0.94, metalness: 0 }));
+        const trunkRadius = Number(settings.trunkRadius || 0.18);
+        const trunk = mesh(triangleCylinder(trunkRadius * 0.62, trunkRadius, height, 9), physical(trunkColor, { roughness: 0.94, metalness: 0 }));
         trunk.position.y = height * 0.5;
         tree.add(trunk);
         const branchSurface = physical(trunkColor, { roughness: 0.96, metalness: 0 });
-        const branchCount = species === "pine" ? 5 : 7;
+        const branchCount = Math.max(3, Math.round(Number(settings.branchCount || (species === "pine" ? 5 : 7))));
         for (let branchIndex = 0; branchIndex < branchCount; branchIndex += 1) {
           const angle = branchIndex / branchCount * Math.PI * 2 + random() * 0.4;
           const start = new THREE.Vector3(0, height * (0.52 + branchIndex * 0.045), 0);
-          const length = 0.7 + random() * 0.65;
-          const end = new THREE.Vector3(Math.cos(angle) * length, start.y + 0.25 + random() * 0.35, Math.sin(angle) * length);
+          const length = Number(settings.branchSpread || 1) * (0.72 + random() * 0.42);
+          const droop = species === "willow" ? Number(settings.droop || 0.3) : Number(settings.droop || 0.08) * 0.28;
+          const end = new THREE.Vector3(Math.cos(angle) * length, start.y + 0.34 + random() * 0.24 - droop, Math.sin(angle) * length);
           tree.add(cylinderBetween(start, end, 0.055, branchSurface, 7));
         }
         const foliageColors = species === "pine" ? [0x1f5944, 0x2c7250] : species === "willow" ? [0x5f8247, 0x7f9d58] : species === "birch" ? [0x6f9f58, 0x95ba70] : [0x376f45, 0x568d4e];
-        const crownCount = species === "pine" ? 5 : species === "willow" ? 8 : 7;
+        const crownCount = Math.max(3, Math.round(Number(settings.crownCount || (species === "pine" ? 5 : species === "willow" ? 8 : 7))));
         for (let crownIndex = 0; crownIndex < crownCount; crownIndex += 1) {
           const angle = crownIndex / crownCount * Math.PI * 2 + random();
-          const radius = species === "willow" ? 1.35 : 1.05;
+          const radius = Number(settings.crownRadius || (species === "willow" ? 1.35 : 1.05));
           const crown = mesh(
             species === "pine"
               ? triangleCone(0.72 + random() * 0.26, 1.5 + random() * 0.5, 9)
@@ -738,7 +1044,10 @@ export function createForestShowcaseHtml(profile) {
 
     function terrainPatch(step, mode) {
       const group = new THREE.Group();
-      const patch = mesh(triangleCylinder(mode === "test" ? 2.5 : 4.5, mode === "test" ? 2.7 : 4.8, 0.42, 32), physical(0x4c704e, { roughness: 0.96, metalness: 0 }));
+      const settings = meshProgramSettings(step);
+      const radius = Number(settings.radius || 4.5) * (mode === "test" ? 0.56 : 1);
+      const depth = Number(settings.depth || 0.42);
+      const patch = mesh(triangleCylinder(radius * 0.94, radius, depth, Number(settings.segments || 32)), physical(0x4c704e, { roughness: 0.96, metalness: 0 }));
       patch.position.y = 0.16;
       group.add(patch);
       for (let index = 0; index < (mode === "test" ? 9 : 18); index += 1) {
@@ -754,12 +1063,14 @@ export function createForestShowcaseHtml(profile) {
 
     function boulders(step, mode) {
       const group = new THREE.Group();
-      const count = mode === "test" ? 4 : 9;
+      const settings = meshProgramSettings(step);
+      const count = mode === "test" ? Math.max(3, Math.round(Number(settings.count || 8) * 0.55)) : Math.round(Number(settings.count || 9));
       const random = rng((step.seed || profile.seed) + step.id + mode);
       for (let index = 0; index < count; index += 1) {
-        const rock = mesh(trianglePoly(0.55 + random() * 0.42, 2, step.algorithm || "boulder-faceted"), physical(0x68716b, { roughness: 0.93, metalness: 0.02 }));
-        rock.scale.set(1.1 + random() * 0.7, 0.65 + random() * 0.55, 0.9 + random() * 0.6);
-        rock.position.set((random() - 0.5) * (mode === "test" ? 3.1 : 5), 0.48, (random() - 0.5) * (mode === "test" ? 2.3 : 4));
+        const rock = mesh(trianglePoly(Number(settings.radius || 0.65) * (0.78 + random() * 0.44), 2, step.algorithm || "boulder-faceted"), physical(0x68716b, { roughness: 0.93, metalness: 0.02 }));
+        rock.scale.set(1.1 + random() * 0.7, Number(settings.flatten || 0.72) * (0.9 + random() * 0.24), 0.9 + random() * 0.6);
+        const spread = Number(settings.spread || 4.2) * (mode === "test" ? 0.62 : 1);
+        rock.position.set((random() - 0.5) * spread, 0.48, (random() - 0.5) * spread * 0.8);
         rock.rotation.set(random(), random() * Math.PI, random() * 0.4);
         group.add(rock);
         const moss = mesh(trianglePoly(0.35 + random() * 0.22, 1, "moss-cluster"), physical(step.color, { roughness: 1, metalness: 0 }));
@@ -772,13 +1083,15 @@ export function createForestShowcaseHtml(profile) {
 
     function crystals(step, mode) {
       const group = new THREE.Group();
-      const count = mode === "test" ? 7 : 11;
+      const settings = meshProgramSettings(step);
+      const count = mode === "test" ? Math.max(4, Math.round(Number(settings.count || 10) * 0.68)) : Math.round(Number(settings.count || 11));
       const random = rng((step.seed || profile.seed) + step.id + mode);
       for (let index = 0; index < count; index += 1) {
-        const crystal = mesh(trianglePoly(0.32 + random() * 0.3, 0, step.algorithm || "crystal-radial"), physical(index % 2 ? step.color : 0xbdeef0, { roughness: 0.1, metalness: 0.16, transmission: 0.1, emissive: step.color, emissiveIntensity: 0.75, clearcoat: 0.85 }));
-        crystal.scale.y = 1.8 + random() * 2;
-        crystal.position.set((random() - 0.5) * 2.6, crystal.scale.y * 0.18, (random() - 0.5) * 2.2);
-        crystal.rotation.y = random() * Math.PI;
+        const crystal = mesh(trianglePoly(Number(settings.radius || 0.32) * (0.78 + random() * 0.5), 0, step.algorithm || "crystal-radial"), physical(index % 2 ? step.color : 0xbdeef0, { roughness: 0.1, metalness: 0.16, transmission: 0.1, emissive: step.color, emissiveIntensity: 0.75, clearcoat: 0.85 }));
+        crystal.scale.y = Number(settings.height || 3) * (0.52 + random() * 0.48);
+        const spread = Number(settings.spread || 2.2);
+        crystal.position.set((random() - 0.5) * spread, crystal.scale.y * 0.18, (random() - 0.5) * spread * 0.84);
+        crystal.rotation.set((random() - 0.5) * Number(settings.tilt || 0.2), random() * Math.PI, (random() - 0.5) * Number(settings.tilt || 0.2));
         group.add(crystal);
       }
       const light = new THREE.PointLight(step.color, mode === "test" ? 15 : 24, 7, 2);
@@ -789,17 +1102,21 @@ export function createForestShowcaseHtml(profile) {
 
     function shrine(step) {
       const group = new THREE.Group();
+      const settings = meshProgramSettings(step);
       const stone = physical(0x747970, { roughness: 0.9, metalness: 0 });
       const wood = physical(0x79523a, { roughness: 0.82, metalness: 0.02 });
-      const base = mesh(triangleCylinder(1.4, 1.6, 0.3, 8), stone);
+      const baseRadius = Number(settings.baseRadius || 1.5);
+      const base = mesh(triangleCylinder(baseRadius * 0.88, baseRadius, 0.3, 8), stone);
       group.add(base);
-      [-0.86, 0.86].forEach((x) => {
-        const pillar = mesh(triangleCylinder(0.14, 0.2, 2.7, 10), wood);
-        pillar.position.set(x, 1.45, 0);
+      const pillarHeight = Number(settings.pillarHeight || 2.7);
+      const pillarSpread = Number(settings.pillarSpread || 0.86);
+      [-pillarSpread, pillarSpread].forEach((x) => {
+        const pillar = mesh(triangleCylinder(0.14, 0.2, pillarHeight, 10), wood);
+        pillar.position.set(x, pillarHeight * 0.5 + 0.1, 0);
         group.add(pillar);
       });
-      const roof = mesh(triangleCone(1.65, 0.68, 4), physical(0x355447, { roughness: 0.68, metalness: 0.08 }));
-      roof.position.y = 3.05;
+      const roof = mesh(triangleCone(Number(settings.roofRadius || 1.65), Number(settings.roofHeight || 0.68), 4), physical(0x355447, { roughness: 0.68, metalness: 0.08 }));
+      roof.position.y = pillarHeight + 0.35;
       roof.rotation.y = Math.PI / 4;
       group.add(roof);
       const flame = mesh(trianglePoly(0.23, 2, "flame-faceted"), physical(step.color, { emissive: step.color, emissiveIntensity: 2.4, roughness: 0.1 }));
@@ -813,39 +1130,119 @@ export function createForestShowcaseHtml(profile) {
 
     function arch(step) {
       const group = new THREE.Group();
-      const stone = physical(0x858d84, { roughness: 0.94, metalness: 0 });
-      for (let index = 0; index < 11; index += 1) {
-        const angle = Math.PI * (index / 10);
-        const block = mesh(triangleBox(0.62, 0.52, 0.82), stone);
-        block.position.set(Math.cos(angle) * 1.75, Math.sin(angle) * 1.75 + 1.45, 0);
-        block.rotation.z = angle - Math.PI / 2;
+      const settings = meshProgramSettings(step);
+      const random = rng((step.seed || profile.seed) + ":high-fidelity-arch");
+      const palettes = {
+        alpine: [0x7e8988, 0x98a29e, 0xb3bbb5, 0x697574],
+        desert: [0x9e7650, 0xb98d5d, 0xd0aa72, 0x846348],
+        forest: [0x667468, 0x7e8874, 0x59675c, 0x90967e],
+        volcanic: [0x3d4140, 0x50504c, 0x292f30, 0x67594f],
+      };
+      const palette = palettes[activeWorldTypeId] || palettes.forest;
+      const stoneSurfaces = palette.map((color, index) => physical(color, {
+        clearcoat: 0.03,
+        flatShading: true,
+        metalness: 0,
+        roughness: 0.78 + index * 0.045,
+        side: THREE.DoubleSide,
+      }));
+      const blockCount = Math.max(7, Math.round(Number(settings.blockCount || 11)));
+      const span = Number(settings.span || 3.5);
+      const rise = Number(settings.rise || 3.1);
+      const ringThickness = Number(settings.blockWidth || 0.62) * 0.92;
+      const blockDepth = Number(settings.blockDepth || 0.82);
+      const halfSpan = span * 0.5;
+      const springY = Math.max(0.7, rise * 0.38);
+      const curveA = Math.max(0.45, halfSpan / 1.45);
+      const edgeCosh = Math.cosh(halfSpan / curveA);
+      const profilePoint = (x) => {
+        const normalized = (edgeCosh - Math.cosh(x / curveA)) / Math.max(0.0001, edgeCosh - 1);
+        const y = springY + normalized * (rise - springY);
+        const slope = -(Math.sinh(x / curveA) / curveA) * (rise - springY) / Math.max(0.0001, edgeCosh - 1);
+        const normalLength = Math.hypot(slope, 1);
+        return {
+          inner: [x, y],
+          outer: [x - slope / normalLength * ringThickness, y + 1 / normalLength * ringThickness],
+        };
+      };
+      for (let index = 0; index < blockCount; index += 1) {
+        const gap = 0.022;
+        const left = profilePoint(-halfSpan + ((index + gap) / blockCount) * span);
+        const right = profilePoint(-halfSpan + ((index + 1 - gap) / blockCount) * span);
+        const centerDistance = Math.abs(index - (blockCount - 1) * 0.5);
+        const keystone = centerDistance < 0.51;
+        if (keystone) {
+          left.outer[0] -= ringThickness * 0.16;
+          right.outer[0] += ringThickness * 0.16;
+          left.outer[1] += ringThickness * 0.08;
+          right.outer[1] += ringThickness * 0.08;
+        }
+        const block = mesh(
+          beveledQuadPrism(
+            [left.inner, right.inner, right.outer, left.outer],
+            blockDepth * (0.98 + random() * 0.04),
+            Math.min(0.085, ringThickness * 0.14),
+            keystone ? "catenary-keystone-beveled-v2" : "catenary-voussoir-beveled-v2",
+          ),
+          stoneSurfaces[index % stoneSurfaces.length],
+        );
+        block.position.z = (random() - 0.5) * 0.025;
         group.add(block);
       }
-      [-1.75, 1.75].forEach((x) => {
-        for (let index = 0; index < 4; index += 1) {
-          const block = mesh(triangleBox(0.7, 0.68, 0.9), stone);
-          block.position.set(x, 0.36 + index * 0.66, 0);
-          block.rotation.y = (index % 2) * 0.08;
+      [-halfSpan, halfSpan].forEach((x, sideIndex) => {
+        const supportCount = Math.max(3, Math.ceil(springY / 0.52));
+        const side = sideIndex === 0 ? -1 : 1;
+        const pierWidth = ringThickness * 1.7;
+        const footing = mesh(beveledBlock(pierWidth * 1.42, 0.34, blockDepth * 1.48, 0.08, "arch-footing-beveled-v2"), stoneSurfaces[(sideIndex + 2) % stoneSurfaces.length]);
+        footing.position.set(x + side * 0.04, 0.15, 0);
+        group.add(footing);
+        for (let index = 0; index < supportCount; index += 1) {
+          const courseHeight = springY / supportCount;
+          const courseWidth = pierWidth * (1 - index / supportCount * 0.08);
+          const block = mesh(beveledBlock(courseWidth, courseHeight * 0.92, blockDepth * (1.14 + (index % 2) * 0.04), 0.065, "arch-pier-course-beveled-v2"), stoneSurfaces[(index + sideIndex) % stoneSurfaces.length]);
+          block.position.set(x + side * ((index % 2) * 0.035), 0.34 + courseHeight * 0.5 + index * courseHeight, (random() - 0.5) * 0.025);
           group.add(block);
         }
+        const cap = mesh(beveledBlock(pierWidth * 1.16, 0.24, blockDepth * 1.34, 0.055, "arch-springer-cap-beveled-v2"), stoneSurfaces[(sideIndex + 1) % stoneSurfaces.length]);
+        cap.position.set(x, springY - 0.03, 0);
+        group.add(cap);
+        for (let wing = 0; wing < 2; wing += 1) {
+          const wingHeight = 0.88 - wing * 0.22;
+          const wingBlock = mesh(beveledBlock(pierWidth * (0.92 - wing * 0.08), wingHeight, blockDepth * 1.08, 0.07, "arch-buttress-beveled-v2"), stoneSurfaces[(wing + sideIndex + 2) % stoneSurfaces.length]);
+          wingBlock.position.set(x + side * (pierWidth * (1.08 + wing * 0.82)), wingHeight * 0.5 + 0.16, (random() - 0.5) * 0.05);
+          wingBlock.rotation.y = side * (0.025 + wing * 0.02);
+          group.add(wingBlock);
+        }
       });
+      for (let index = 0; index < 7; index += 1) {
+        const side = index % 2 ? -1 : 1;
+        const rubble = mesh(trianglePoly(0.18 + random() * 0.2, 1, "weathered-arch-rubble"), stoneSurfaces[(index + 1) % stoneSurfaces.length]);
+        rubble.position.set(side * (halfSpan + 0.45 + random() * 1.05), 0.16 + random() * 0.12, (random() - 0.5) * 1.45);
+        rubble.scale.set(1.25 + random() * 0.6, 0.65 + random() * 0.32, 0.9 + random() * 0.5);
+        rubble.rotation.set(random() * 0.55, random() * Math.PI, random() * 0.4);
+        group.add(rubble);
+      }
       return group;
     }
 
     function bridge(step, mode) {
       const group = new THREE.Group();
+      const settings = meshProgramSettings(step);
       const wood = physical(0x805638, { roughness: 0.88, metalness: 0 });
       const rope = physical(0x9f8a63, { roughness: 1, metalness: 0 });
-      const plankCount = mode === "test" ? 9 : 13;
+      const plankCount = mode === "test" ? Math.max(7, Math.round(Number(settings.plankCount || 13) * 0.72)) : Math.round(Number(settings.plankCount || 13));
+      const span = Number(settings.span || 4.5);
+      const width = Number(settings.width || 2.5);
+      const sag = Number(settings.sag || 0.18);
       for (let index = 0; index < plankCount; index += 1) {
-        const plank = mesh(triangleBox(2.5, 0.13, 0.34), wood);
-        plank.position.set(0, 0.1 + Math.sin(index / (plankCount - 1) * Math.PI) * -0.18, (index - (plankCount - 1) / 2) * 0.36);
+        const plank = mesh(triangleBox(width, 0.13, span / plankCount * 0.86), wood);
+        plank.position.set(0, 0.1 - Math.sin(index / (plankCount - 1) * Math.PI) * sag, (index / (plankCount - 1) - 0.5) * span);
         plank.rotation.y = (index % 2 ? 1 : -1) * 0.025;
         group.add(plank);
       }
-      [-1.22, 1.22].forEach((x) => {
-        const start = new THREE.Vector3(x, 0.75, -plankCount * 0.18);
-        const end = new THREE.Vector3(x, 0.75, plankCount * 0.18);
+      [-width * 0.49, width * 0.49].forEach((x) => {
+        const start = new THREE.Vector3(x, 0.75, -span * 0.5);
+        const end = new THREE.Vector3(x, 0.75, span * 0.5);
         group.add(cylinderBetween(start, end, 0.035, rope, 7));
       });
       return group;
@@ -853,15 +1250,19 @@ export function createForestShowcaseHtml(profile) {
 
     function waterfall(step) {
       const group = new THREE.Group();
+      const settings = meshProgramSettings(step);
       const rock = physical(0x606a65, { roughness: 0.94, metalness: 0 });
-      for (let index = 0; index < 7; index += 1) {
+      const tiers = Math.max(3, Math.round(Number(settings.tiers || 7)));
+      const spread = Number(settings.spread || 2.2);
+      const height = Number(settings.height || 3.2);
+      for (let index = 0; index < tiers; index += 1) {
         const stone = mesh(trianglePoly(0.72 + (index % 3) * 0.15, 1, step.algorithm || "waterfall-rock"), rock);
-        stone.position.set((index % 3 - 1) * 0.95, 0.55 + Math.floor(index / 3) * 0.9, (index % 2 - 0.5) * 0.4);
+        stone.position.set((index % 3 - 1) * spread * 0.42, 0.45 + index / Math.max(1, tiers - 1) * height * 0.68, (index % 2 - 0.5) * 0.4);
         stone.scale.y = 0.8 + index * 0.05;
         group.add(stone);
       }
-      const water = mesh(trianglePlane(1.25, 3.2, 1, 16), physical(step.color, { transparent: true, opacity: 0.76, transmission: 0.28, thickness: 0.4, roughness: 0.08, clearcoat: 1, side: THREE.DoubleSide }));
-      water.position.set(0, 1.75, 0.78);
+      const water = mesh(trianglePlane(Number(settings.width || 1.25), height, 1, 16), physical(step.color, { transparent: true, opacity: 0.76, transmission: 0.28, thickness: 0.4, roughness: 0.08, clearcoat: 1, side: THREE.DoubleSide }));
+      water.position.set(0, height * 0.55, 0.78);
       group.add(water);
       const mist = new THREE.PointLight(0xa9e4ef, 12, 5, 2);
       mist.position.set(0, 0.6, 1);
@@ -871,18 +1272,19 @@ export function createForestShowcaseHtml(profile) {
 
     function mushrooms(step, mode) {
       const group = new THREE.Group();
-      const count = mode === "test" ? 9 : 16;
+      const settings = meshProgramSettings(step);
+      const count = mode === "test" ? Math.max(7, Math.round(Number(settings.count || 16) * 0.62)) : Math.round(Number(settings.count || 16));
       for (let index = 0; index < count; index += 1) {
         const angle = index / count * Math.PI * 2;
         const mushroom = new THREE.Group();
-        const stemHeight = 0.42 + (index % 3) * 0.12;
+        const stemHeight = Number(settings.stemHeight || 0.48) * (0.82 + (index % 3) * 0.16);
         const stem = mesh(triangleCylinder(0.06, 0.09, stemHeight, 8), physical(0xd8cdb1, { roughness: 0.9, metalness: 0 }));
         stem.position.y = stemHeight * 0.5;
         mushroom.add(stem);
-        const cap = mesh(triangleSphere(0.23 + (index % 2) * 0.06, 16, 8, 0, Math.PI * 2, 0, Math.PI * 0.52), physical(index % 3 ? step.color : 0xe39b63, { roughness: 0.66, metalness: 0, clearcoat: 0.28 }));
+        const cap = mesh(triangleSphere(Number(settings.capRadius || 0.26) * (0.88 + (index % 2) * 0.2), 16, 8, 0, Math.PI * 2, 0, Math.PI * 0.52), physical(index % 3 ? step.color : 0xe39b63, { roughness: 0.66, metalness: 0, clearcoat: 0.28 }));
         cap.position.y = stemHeight;
         mushroom.add(cap);
-        const radius = mode === "test" ? 1.25 : 1.8;
+        const radius = Number(settings.ringRadius || 1.8) * (mode === "test" ? 0.72 : 1);
         mushroom.position.set(Math.cos(angle) * radius, 0, Math.sin(angle) * radius);
         mushroom.scale.setScalar(0.8 + (index % 4) * 0.12);
         group.add(mushroom);
@@ -892,7 +1294,8 @@ export function createForestShowcaseHtml(profile) {
 
     function fireflies(step, mode) {
       const group = new THREE.Group();
-      const count = mode === "test" ? 80 : 220;
+      const settings = meshProgramSettings(step);
+      const count = mode === "test" ? Math.max(60, Math.round(Number(settings.count || 180) * 0.45)) : Math.round(Number(settings.count || 220));
       const random = rng((step.seed || profile.seed) + step.id + mode);
       const geometry = trianglePoly(mode === "test" ? 0.055 : 0.04, 0, step.algorithm || "firefly-tetra");
       const surface = physical(step.color, { emissive: step.color, emissiveIntensity: 2.6, roughness: 0.12 });
@@ -901,8 +1304,8 @@ export function createForestShowcaseHtml(profile) {
       const quaternion = new THREE.Quaternion();
       const scale = new THREE.Vector3();
       for (let index = 0; index < count; index += 1) {
-        const radius = mode === "test" ? 2.3 : 5.5;
-        const position = new THREE.Vector3((random() - 0.5) * radius * 2, 0.35 + random() * (mode === "test" ? 3.5 : 5), (random() - 0.5) * radius * 2);
+        const radius = Number(settings.radius || 5.5) * (mode === "test" ? 0.46 : 1);
+        const position = new THREE.Vector3((random() - 0.5) * radius * 2, 0.35 + random() * Number(settings.height || 5), (random() - 0.5) * radius * 2);
         const size = 0.65 + random() * 0.7;
         scale.set(size, size, size);
         matrix.compose(position, quaternion, scale);
@@ -915,37 +1318,47 @@ export function createForestShowcaseHtml(profile) {
 
     function lantern(step) {
       const group = new THREE.Group();
-      const post = mesh(triangleCylinder(0.11, 0.16, 2.8, 9), physical(0x3e332a, { roughness: 0.8, metalness: 0.1 }));
-      post.position.y = 1.4;
+      const settings = meshProgramSettings(step);
+      const postHeight = Number(settings.postHeight || 2.8);
+      const armReach = Number(settings.armReach || 0.72);
+      const cageSize = Number(settings.cageSize || 0.54);
+      const cageHeight = Number(settings.cageHeight || 0.68);
+      const post = mesh(triangleCylinder(0.11, 0.16, postHeight, 9), physical(0x3e332a, { roughness: 0.8, metalness: 0.1 }));
+      post.position.y = postHeight * 0.5;
       group.add(post);
-      const arm = cylinderBetween(new THREE.Vector3(0, 2.55, 0), new THREE.Vector3(0.72, 2.55, 0), 0.08, physical(0x3e332a, { roughness: 0.8 }));
+      const armY = postHeight * 0.91;
+      const arm = cylinderBetween(new THREE.Vector3(0, armY, 0), new THREE.Vector3(armReach, armY, 0), 0.08, physical(0x3e332a, { roughness: 0.8 }));
       group.add(arm);
       const frameSurface = physical(0x26302d, { roughness: 0.28, metalness: 0.72 });
       for (const x of [-0.21, 0.21]) {
         for (const z of [-0.21, 0.21]) {
-          const bar = mesh(triangleBox(0.055, 0.7, 0.055), frameSurface);
-          bar.position.set(0.72 + x, 2.16, z);
+          const bar = mesh(triangleBox(0.055, cageHeight, 0.055), frameSurface);
+          bar.position.set(armReach + x * cageSize / 0.54, armY - cageHeight * 0.55, z * cageSize / 0.54);
           group.add(bar);
         }
       }
-      for (const y of [1.82, 2.5]) {
-        const frame = mesh(triangleBox(0.54, 0.06, 0.54), frameSurface);
-        frame.position.set(0.72, y, 0);
+      for (const y of [armY - cageHeight * 1.05, armY - cageHeight * 0.05]) {
+        const frame = mesh(triangleBox(cageSize, 0.06, cageSize), frameSurface);
+        frame.position.set(armReach, y, 0);
         group.add(frame);
       }
-      const glow = mesh(triangleBox(0.3, 0.44, 0.3), physical(step.color, { emissive: step.color, emissiveIntensity: 2.8, transparent: true, opacity: 0.85, transmission: 0.2, roughness: 0.12 }));
-      glow.position.set(0.72, 2.16, 0);
+      const glow = mesh(triangleBox(cageSize * 0.56, cageHeight * 0.63, cageSize * 0.56), physical(step.color, { emissive: step.color, emissiveIntensity: 2.8, transparent: true, opacity: 0.85, transmission: 0.2, roughness: 0.12 }));
+      glow.position.set(armReach, armY - cageHeight * 0.55, 0);
       group.add(glow);
       const light = new THREE.PointLight(step.color, 24, 8, 2);
-      light.position.set(0.72, 2.16, 0);
+      light.position.set(armReach, armY - cageHeight * 0.55, 0);
       group.add(light);
       return group;
     }
 
     function monolith(step) {
       const group = new THREE.Group();
-      const body = mesh(triangleBox(1.25, 3.7, 0.72), physical(0x172521, { roughness: 0.24, metalness: 0.62, clearcoat: 0.46 }));
-      body.position.y = 1.85;
+      const settings = meshProgramSettings(step);
+      const height = Number(settings.height || 3.7);
+      const width = Number(settings.width || 1.25);
+      const depth = Number(settings.depth || 0.72);
+      const body = mesh(triangleBox(width, height, depth), physical(0x172521, { roughness: 0.24, metalness: 0.62, clearcoat: 0.46 }));
+      body.position.y = height * 0.5;
       group.add(body);
       const runeSurface = physical(step.color, { emissive: step.color, emissiveIntensity: 2.8, roughness: 0.08 });
       for (let index = 0; index < 5; index += 1) {
@@ -994,11 +1407,19 @@ export function createForestShowcaseHtml(profile) {
       monolith,
     };
 
+    function buildFactoryAsset(step, mode, settingsOverride = null) {
+      const settings = meshProgramSettings(step, settingsOverride);
+      const effectiveStep = step.meshProgram
+        ? { ...step, meshProgram: { ...step.meshProgram, settings } }
+        : step;
+      return executeMeshProgram(factories[step.type](effectiveStep, mode), effectiveStep, settings);
+    }
+
     const testScale = { terrainPatch: 0.9, oak: 1.12, birch: 1.15, pine: 1.08, willow: 0.98, boulders: 1, crystals: 1.08, shrine: 1.04, arch: 1.02, bridge: 1.05, waterfall: 1, mushrooms: 1.28, fireflies: 1.12, lantern: 1.28, monolith: 1.04 };
     const worldScale = { terrainPatch: 0.72, oak: 0.84, birch: 0.78, pine: 0.78, willow: 0.7, boulders: 0.76, crystals: 0.68, shrine: 0.92, arch: 0.94, bridge: 1.08, waterfall: 0.92, mushrooms: 0.9, fireflies: 1, lantern: 0.94, monolith: 0.94 };
     const editorOverrides = profile.steps.map((step) => ({
       seed: profile.seed + ":" + step.id,
-      scale: 1,
+      scale: Number(step.scale || 1),
       rotation: 0,
       roughness: 0.55,
       detail: 100,
@@ -1008,17 +1429,19 @@ export function createForestShowcaseHtml(profile) {
       added: false,
     }));
     const testAssets = profile.steps.map((step, index) => {
-      const object = factories[step.type]({ ...step, seed: editorOverrides[index].seed }, "test");
+      const object = buildFactoryAsset({ ...step, seed: editorOverrides[index].seed }, "test");
       object.visible = false;
       studio.add(object);
       return object;
     });
     const worldAssets = profile.steps.map((step, index) => {
-      const object = factories[step.type]({ ...step, seed: editorOverrides[index].seed }, "world");
+      const object = buildFactoryAsset({ ...step, seed: editorOverrides[index].seed }, "world");
       object.position.fromArray(step.position);
       if (nexusTerrain) {
         const grounding = nexusTerrain.grounding.profiles.find((entry) => entry.id === step.id)?.groundingProfile;
         object.position.y = terrainHeightAt(object.position.x, object.position.z) - Number(grounding?.rootSink || 0);
+      } else if (step.type !== "terrainPatch") {
+        object.position.y = terrainHeightAt(object.position.x, object.position.z) + Number(step.position[1] || 0);
       }
       object.userData.target = object.position.clone();
       object.userData.targetYaw = Number(step.yaw || 0);
@@ -1034,13 +1457,55 @@ export function createForestShowcaseHtml(profile) {
       const selected = attempts.find((attempt) => attempt.algorithm === plan?.selectedAlgorithm && attempt.seed === plan?.selectedSeed);
       const visibleAttempts = [...rejected, ...(selected ? [selected] : [])];
       return visibleAttempts.map((attempt) => {
-        const object = factories[step.type]({ ...step, algorithm: attempt.algorithm, seed: attempt.seed }, "test");
+        const object = buildFactoryAsset({ ...step, algorithm: attempt.algorithm, seed: attempt.seed }, "test");
         object.visible = false;
         object.userData.candidate = attempt;
         studio.add(object);
         return object;
       });
     });
+    const requestedStepIds = new Set(profile.promptCompilation?.requestedStepIds || []);
+    const focusTypeOrder = ["arch", "shrine", "crystals", "bridge", "waterfall", "willow", "boulders", "lantern", "monolith", "mushrooms", "fireflies", "terrainPatch"];
+    const focusStepIndex = focusTypeOrder.reduce((selected, type) => {
+      if (selected >= 0) return selected;
+      return profile.steps.findIndex((step) => requestedStepIds.has(step.id) && step.type === type && step.meshProgram);
+    }, -1);
+    const proceduralFocusIndex = focusStepIndex >= 0 ? focusStepIndex : profile.steps.findIndex((step) => step.meshProgram);
+    const proceduralFocusStep = profile.steps[proceduralFocusIndex] || null;
+    const proceduralEditorInWorld = profile.presentation?.mode === "procedural-editor";
+    const proceduralInitialAsset = proceduralFocusStep
+      ? buildFactoryAsset(proceduralFocusStep, proceduralEditorInWorld ? "world" : "test", proceduralFocusStep.meshProgram.preview.initialSettings)
+      : null;
+    if (proceduralInitialAsset) {
+      proceduralInitialAsset.visible = false;
+      if (proceduralEditorInWorld) {
+        const focusWorldAsset = worldAssets[proceduralFocusIndex];
+        proceduralInitialAsset.position.copy(focusWorldAsset.userData.target);
+        proceduralInitialAsset.rotation.y = focusWorldAsset.userData.targetYaw;
+        proceduralInitialAsset.scale.setScalar((worldScale[proceduralFocusStep.type] || 1) * editorOverrides[proceduralFocusIndex].scale);
+        forestWorld.add(proceduralInitialAsset);
+      } else {
+        studio.add(proceduralInitialAsset);
+      }
+    }
+    const programControlElements = new Map();
+    if (proceduralFocusStep) {
+      meshProgramTitle.textContent = proceduralFocusStep.label;
+      meshProgramControls.replaceChildren(...proceduralFocusStep.meshProgram.preview.controls.map((control) => {
+        const row = document.createElement("div");
+        row.className = "program-control";
+        const label = document.createElement("span");
+        label.textContent = control.label;
+        const output = document.createElement("output");
+        const track = document.createElement("div");
+        track.className = "program-track";
+        const fill = document.createElement("span");
+        track.append(fill);
+        row.append(label, output, track);
+        programControlElements.set(control.id, { control, fill, output });
+        return row;
+      }));
+    }
 
     const massiveWorld = new THREE.Group();
     const massiveConfig = profile.generation?.massiveWorld;
@@ -1058,7 +1523,7 @@ export function createForestShowcaseHtml(profile) {
           const z = lerp(chunk.bounds.minZ + margin, chunk.bounds.maxZ - margin, placement());
           const grounding = groundingById.get(step.id);
           if (grounding?.valid !== true) return;
-          const object = factories[step.type]({ ...step, seed: step.seed + ":chunk:" + chunk.id }, "world");
+          const object = buildFactoryAsset({ ...step, seed: step.seed + ":chunk:" + chunk.id }, "world");
           object.position.set(x, terrainHeightAt(x, z) - Number(grounding.rootSink || 0), z);
           object.rotation.y = Number(step.yaw || 0) + placement() * Math.PI * 2;
           object.scale.setScalar(0.72 + placement() * 0.34);
@@ -1083,7 +1548,7 @@ export function createForestShowcaseHtml(profile) {
           profile.steps.forEach((step, index) => {
             const placement = rng(profile.seed + ":sector:" + sectorX + ":" + sectorZ + ":" + step.id);
             if (placement() > Number(massiveConfig.assetDensity)) return;
-            const object = factories[step.type]({ ...step, seed: step.seed + ":sector:" + sectorX + ":" + sectorZ }, "world");
+            const object = buildFactoryAsset({ ...step, seed: step.seed + ":sector:" + sectorX + ":" + sectorZ }, "world");
             object.position.set(
               sectorX * spacing + step.position[0] + (placement() - 0.5) * 8,
               step.position[1],
@@ -1197,7 +1662,15 @@ export function createForestShowcaseHtml(profile) {
       phase: "intro",
       time: 0,
       test: { currentIndex: -1, built: 0, viewed: 0, validated: 0 },
-      world: { committed: 0, expected: profile.steps.length, type: activeWorldTypeId, structure: activeWorldStructureId, structureValid: null },
+      world: {
+        committed: 0,
+        expected: profile.steps.length,
+        type: activeWorldTypeId,
+        structure: activeWorldStructureId,
+        structureValid: null,
+        planSeed: worldPlan?.seed || profile.seed,
+        planDigest: worldPlan?.digest || null,
+      },
       complete: false,
       quality: { canvasRendered: true, objectCount: profile.steps.length, environmentDetailInstances: grassCount + path.children.length, serializedCommits: true },
       editor: { enabled: editorMode, selectedIndex: 0, status: "draft", preview: "turntable", added: [] },
@@ -1260,12 +1733,15 @@ export function createForestShowcaseHtml(profile) {
       const step = { ...profile.steps[index], seed: editorOverrides[index].seed };
       studio.remove(testAssets[index]);
       forestWorld.remove(worldAssets[index]);
-      const testObject = factories[step.type](step, "test");
+      const testObject = buildFactoryAsset(step, "test");
       testObject.visible = false;
       studio.add(testObject);
       testAssets[index] = testObject;
-      const worldObject = factories[step.type](step, "world");
+      const worldObject = buildFactoryAsset(step, "world");
       worldObject.position.fromArray(step.position);
+      if (!nexusTerrain && step.type !== "terrainPatch") {
+        worldObject.position.y = terrainHeightAt(worldObject.position.x, worldObject.position.z) + Number(step.position[1] || 0);
+      }
       worldObject.userData.target = worldObject.position.clone();
       worldObject.userData.targetYaw = Number(step.yaw || 0);
       worldObject.userData.step = step;
@@ -1411,7 +1887,7 @@ export function createForestShowcaseHtml(profile) {
         const detail = promoted
           ? attempt.algorithm + " / confidence " + attempt.confidence.toFixed(2) + " / custom wound triangles"
           : (attempt?.algorithm || "candidate") + " / " + (attempt?.failures || ["confidence"]).join(", ");
-        agentCopy.textContent = agent.name.toUpperCase() + " / " + stage + " / ASSET " + String(activeIndex + 1).padStart(2, "0") + "/15";
+        agentCopy.textContent = agent.name.toUpperCase() + " / " + stage + " / ASSET " + String(activeIndex + 1).padStart(2, "0") + "/" + String(profile.steps.length).padStart(2, "0");
         titleCopy.textContent = step.label;
         phaseCopy.textContent = detail;
         assetCopy.style.opacity = String(Math.min(smooth(activeLocal / 0.08), smooth((1 - activeLocal) / 0.05)));
@@ -1440,7 +1916,8 @@ export function createForestShowcaseHtml(profile) {
 
       if (inspecting || t < introEnd) {
         const angle = -0.58 + t * 0.16;
-        camera.position.set(Math.sin(angle) * 8.8, 4.8, Math.cos(angle) * 8.8);
+        const framing = portraitFraming();
+        camera.position.set(Math.sin(angle) * 8.8 * framing, 4.8 + (framing - 1) * 2.5, Math.cos(angle) * 8.8 * framing);
         camera.lookAt(0, 1.45, 0);
       } else if (nexusTerrain) {
         const flight = clamp((t - libraryEnd) / Math.max(1, profile.durationSeconds - libraryEnd));
@@ -1450,7 +1927,8 @@ export function createForestShowcaseHtml(profile) {
         const angle = -1.05 + flight * Math.PI * 2.15;
         const radius = Number(massiveConfig?.flightRadius || 48) * (0.78 + Math.sin(flight * Math.PI) * 0.22);
         const height = Number(massiveConfig?.flightHeight || 10) + Math.sin(flight * Math.PI * 3) * 2.4;
-        camera.position.set(Math.sin(angle) * radius, height, Math.cos(angle) * radius);
+        const framing = portraitFraming();
+        camera.position.set(Math.sin(angle) * radius * framing, height + (framing - 1) * 4, Math.cos(angle) * radius * framing);
         const ahead = angle + 0.34;
         camera.lookAt(Math.sin(ahead) * radius * 0.52, 1.1, Math.cos(ahead) * radius * 0.52);
       }
@@ -1461,10 +1939,136 @@ export function createForestShowcaseHtml(profile) {
       return window.__NEXUS_SHOWCASE_STATE__;
     }
 
+    function updateProceduralProgramPanel(amount, stage) {
+      if (!proceduralFocusStep) return;
+      meshProgramStage.textContent = stage + " / " + proceduralFocusStep.meshProgram.method;
+      for (const { control, fill, output } of programControlElements.values()) {
+        const value = lerp(Number(control.initial), Number(control.tuned), amount);
+        const range = Math.max(0.0001, Number(control.maximum) - Number(control.minimum));
+        const percent = clamp((value - Number(control.minimum)) / range) * 100;
+        const integer = Number.isInteger(Number(control.initial)) && Number.isInteger(Number(control.tuned));
+        output.textContent = integer ? String(Math.round(value)) : value.toFixed(2);
+        fill.style.width = percent.toFixed(1) + "%";
+      }
+    }
+
+    function renderProceduralEditorAt(time) {
+      const t = clamp(Number(time) || 0, 0, profile.durationSeconds);
+      const hookEnd = 1.25;
+      const editorStart = hookEnd;
+      const tuneAt = 4.35;
+      const editorEnd = 8.25;
+      const completionStart = 12.45;
+      const editing = t >= editorStart && t < editorEnd;
+      const opening = t < hookEnd;
+      const tuneAmount = t < tuneAt ? 0 : smooth((t - tuneAt) / 0.32);
+      const rebuildFlash = clamp(1 - Math.abs(t - tuneAt) / 0.18);
+      state.time = t;
+      state.presentationTime = t;
+      state.phase = opening ? "world-hook" : editing ? (t < tuneAt ? "mesh-program" : "mesh-rebuild") : t >= completionStart ? "complete" : "world-commit";
+
+      intro.style.opacity = "0";
+      transitionCopy.style.opacity = "0";
+      completion.style.opacity = String(opening ? smooth((hookEnd - t) / 0.28) : opacityWindow(t, completionStart, 0.45, profile.durationSeconds, 0.32));
+      meshProgramPanel.style.opacity = String(editing ? Math.min(smooth((t - editorStart) / 0.28), smooth((editorEnd - t) / 0.28)) : 0);
+      meshFlash.style.opacity = String(rebuildFlash);
+      updateProceduralProgramPanel(tuneAmount, t < tuneAt ? "WIND INITIAL MESH" : rebuildFlash > 0.08 ? "APPLY SETTINGS" : "LIVE PREVIEW UPDATED");
+
+      studio.visible = false;
+      scanRing.visible = false;
+      candidateAssets.flat().forEach((object) => { object.visible = false; });
+      testAssets.forEach((object) => { object.visible = false; });
+      if (proceduralInitialAsset) {
+        proceduralInitialAsset.visible = editing && t < tuneAt;
+      }
+
+      forestWorld.visible = true;
+      forestWorld.scale.setScalar(1);
+      ground.material.opacity = 1;
+      ground.material.transparent = false;
+      river.material.opacity = 0.78;
+      massiveWorld.visible = false;
+      worldAssets.forEach((object, index) => {
+        object.visible = index !== proceduralFocusIndex || !editing || t >= tuneAt;
+        if (!object.visible) return;
+        const finalScale = (worldScale[object.userData.step.type] || 1) * editorOverrides[index].scale;
+        const rebuildPulse = index === proceduralFocusIndex ? 1 + rebuildFlash * 0.045 : 1;
+        object.scale.setScalar(finalScale * rebuildPulse);
+        object.position.copy(object.userData.target);
+        object.rotation.y = object.userData.targetYaw;
+      });
+
+      if (editing) {
+        assetCopy.style.opacity = "1";
+        assetCopy.style.borderColor = profile.agents.find((agent) => agent.id === proceduralFocusStep.agent)?.color || "#68d391";
+        agentCopy.textContent = "AGENTIC MESH WINDER / " + proceduralFocusStep.meshProgram.algorithm;
+        titleCopy.textContent = proceduralFocusStep.label;
+        phaseCopy.textContent = t < tuneAt ? "GENERATE FROM SEEDED PROGRAM" : "SETTINGS CHANGED / PREVIEW REBUILT";
+      } else if (t >= editorEnd && t < completionStart) {
+        assetCopy.style.opacity = String(opacityWindow(t, editorEnd, 0.25, completionStart, 0.35));
+        assetCopy.style.borderColor = "#68d391";
+        agentCopy.textContent = "WORLD APP / VERIFIED PROCEDURAL OBJECT";
+        titleCopy.textContent = "Commit " + proceduralFocusStep.label;
+        phaseCopy.textContent = proceduralFocusStep.meshProgram.digest + " / FULL WORLD UPDATED";
+      } else {
+        assetCopy.style.opacity = "0";
+      }
+
+      if (editing) {
+        const focusObject = worldAssets[proceduralFocusIndex];
+        const target = focusObject.userData.target;
+        const angle = focusObject.userData.targetYaw - 0.72 + (t - editorStart) * 0.035;
+        const framing = portraitFraming();
+        const tallAsset = ["oak", "birch", "pine", "willow", "shrine", "arch", "lantern", "monolith"].includes(proceduralFocusStep.type);
+        const distance = (tallAsset ? 7.2 : 6.4) * framing;
+        camera.position.set(target.x + Math.sin(angle) * distance, target.y + (tallAsset ? 4.25 : 3.7) + (framing - 1) * 1.8, target.z + Math.cos(angle) * distance);
+        camera.lookAt(target.x, target.y + (tallAsset ? 1.55 : 1.1), target.z);
+      } else {
+        const worldTime = opening ? t : t - editorEnd;
+        const angle = -0.86 + worldTime * 0.08;
+        const framing = portraitFraming();
+        const finalAmount = opening ? 1 : smooth((t - completionStart) / 1.2);
+        const distance = lerp(18.2, 15.2, finalAmount) * framing;
+        const height = lerp(8.7, 7.1, finalAmount) + (framing - 1) * 4;
+        camera.position.set(Math.sin(angle) * distance, height, Math.cos(angle) * distance);
+        camera.lookAt(0, 0.9, 0);
+      }
+
+      state.test.currentIndex = proceduralFocusIndex;
+      state.test.built = t >= editorEnd ? profile.steps.length : t >= tuneAt ? 1 : 0;
+      state.test.viewed = t >= editorEnd ? profile.steps.length : t >= tuneAt + 0.32 ? 1 : 0;
+      state.test.validated = t >= editorEnd ? profile.steps.length : 0;
+      state.meshProgram = {
+        focusObjectId: proceduralFocusStep.id,
+        programId: proceduralFocusStep.meshProgram.programId,
+        digest: proceduralFocusStep.meshProgram.digest,
+        settingsApplied: t >= tuneAt,
+        previewRebuilt: t >= tuneAt + 0.32,
+        libraryProgramCount: profile.meshPrograms?.programs?.length || 0,
+      };
+      state.world.committed = t >= editorEnd + 0.42 ? profile.steps.length : 0;
+      state.complete = t >= completionStart
+        && state.world.committed === profile.steps.length
+        && libraryValidation.passed
+        && (!nexusTerrain || state.terrain?.status === "passed");
+      renderer.render(scene, camera);
+      window.__NEXUS_SHOWCASE_STATE__ = JSON.parse(JSON.stringify(state));
+      return window.__NEXUS_SHOWCASE_STATE__;
+    }
+
     function renderAt(time) {
       if (liveLoopMode) return renderLiveLoopAt(time);
-      const t = clamp(Number(time) || 0, 0, profile.durationSeconds);
+      if (profile.presentation?.mode === "procedural-editor") return renderProceduralEditorAt(time);
+      const presentationTime = clamp(Number(time) || 0, 0, profile.durationSeconds);
+      const hookDuration = profile.presentation?.mode === "short-world-hook" ? Math.min(1.2, profile.durationSeconds * 0.12) : 0;
+      const hookStart = Math.min(profile.durationSeconds, Math.max(timeline.worldEnd, timeline.completionStart + 0.65));
+      const t = hookDuration > 0
+        ? presentationTime < hookDuration
+          ? lerp(hookStart, Math.max(hookStart, profile.durationSeconds - 0.12), presentationTime / hookDuration)
+          : ((presentationTime - hookDuration) / (profile.durationSeconds - hookDuration)) * profile.durationSeconds
+        : presentationTime;
       state.time = t;
+      state.presentationTime = presentationTime;
       const testSpan = (timeline.testEnd - timeline.testStart) / profile.steps.length;
       const worldSpan = (timeline.worldEnd - timeline.worldStart) / profile.steps.length;
       const transitionProgress = smooth((t - timeline.testEnd) / (timeline.transitionEnd - timeline.testEnd));
@@ -1547,7 +2151,7 @@ export function createForestShowcaseHtml(profile) {
           const agent = profile.agents.find((item) => item.id === step.agent);
           agentCopy.textContent = "WORLD APP / " + agent.name + " / VERIFIED ASSET";
           titleCopy.textContent = "Commit " + step.label;
-          phaseCopy.textContent = "WORLD COMMIT  " + String(activeWorldIndex + 1).padStart(2, "0") + "/15";
+          phaseCopy.textContent = "WORLD COMMIT  " + String(activeWorldIndex + 1).padStart(2, "0") + "/" + String(profile.steps.length).padStart(2, "0");
           assetCopy.style.opacity = String(opacityWindow(t, timeline.worldStart, 0.35, timeline.completionStart, 0.35));
           assetCopy.style.borderColor = agent.color;
         }
@@ -1575,13 +2179,15 @@ export function createForestShowcaseHtml(profile) {
         const activeType = profile.steps[state.test.currentIndex]?.type;
         const tallAsset = ["oak", "birch", "pine", "willow", "shrine", "arch", "lantern", "monolith"].includes(activeType);
         const testDistance = tallAsset ? 9.35 : 8.2;
-        camera.position.set(Math.sin(angle) * testDistance, tallAsset ? 4.9 : 4.35, Math.cos(angle) * testDistance);
+        const framing = portraitFraming();
+        camera.position.set(Math.sin(angle) * testDistance * framing, (tallAsset ? 4.9 : 4.35) + (framing - 1) * 2.2, Math.cos(angle) * testDistance * framing);
         camera.lookAt(0, tallAsset ? 1.65 : 1.25, 0);
       } else if (t < timeline.transitionEnd) {
         const amount = transitionProgress;
         const angle = -0.58 + t * 0.1;
-        const start = new THREE.Vector3(Math.sin(angle) * 8.2, 4.35, Math.cos(angle) * 8.2);
-        const end = new THREE.Vector3(-13.6, 9.2, 14.5);
+        const framing = portraitFraming();
+        const start = new THREE.Vector3(Math.sin(angle) * 8.2 * framing, 4.35 + (framing - 1) * 2.2, Math.cos(angle) * 8.2 * framing);
+        const end = new THREE.Vector3(-13.6 * framing, 9.2 + (framing - 1) * 4, 14.5 * framing);
         camera.position.lerpVectors(start, end, amount);
         camera.lookAt(0, lerp(1.25, 0.8, amount), 0);
       } else if (nexusTerrain) {
@@ -1591,8 +2197,9 @@ export function createForestShowcaseHtml(profile) {
         const worldTime = t - timeline.transitionEnd;
         const angle = -0.82 + worldTime * 0.115;
         const finalAmount = smooth((t - timeline.completionStart) / 2.5);
-        const distance = lerp(18.4, 15.2, finalAmount);
-        const height = lerp(8.8, 7.1, finalAmount);
+        const framing = portraitFraming();
+        const distance = lerp(18.4, 15.2, finalAmount) * framing;
+        const height = lerp(8.8, 7.1, finalAmount) + (framing - 1) * 4;
         camera.position.set(Math.sin(angle) * distance, height, Math.cos(angle) * distance);
         camera.lookAt(0, 0.9, 0);
       }
@@ -1766,6 +2373,7 @@ export function createForestShowcaseHtml(profile) {
       canvas.style.height = window.innerHeight + "px";
       renderer.setSize(width, window.innerHeight, false);
       camera.aspect = width / window.innerHeight;
+      camera.fov = camera.aspect < 0.75 ? 54 : 43;
       camera.updateProjectionMatrix();
       renderAt(state.time);
     }

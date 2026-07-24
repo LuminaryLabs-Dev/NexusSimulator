@@ -44,15 +44,15 @@
     },
     "volcanic": {
       "label": "Volcanic Basin",
-      "skyTop": "#4b3433",
-      "skyBottom": "#171716",
-      "fog": "#2b211f",
-      "terrainLow": "#1f2221",
-      "terrainMid": "#343934",
-      "terrainHigh": "#615247",
-      "river": "#e05b2a",
-      "detail": "#303731",
-      "sun": "#ff9a61"
+      "skyTop": "#704640",
+      "skyBottom": "#2a2522",
+      "fog": "#49332f",
+      "terrainLow": "#313b37",
+      "terrainMid": "#4a554c",
+      "terrainHigh": "#80695a",
+      "river": "#ff6a32",
+      "detail": "#465149",
+      "sun": "#ffc08a"
     }
   },
   "defaultWorldStructure": "bounded",

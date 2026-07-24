@@ -1,11 +1,20 @@
 import { createServer } from "node:http";
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, extname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { chromium } from "playwright";
 import { runWorldFactoryHarness } from "./world-factory-harness.js";
 import { createForestShowcaseHtml } from "./forest-showcase.js";
 import { validateNexusTerrainStreaming } from "./nexus-terrain-streaming-adapter.js";
+import { compileWorldPrompt } from "./world-prompt-compiler.js";
+import { applyNaturalGenerationPolicy } from "./natural-generation-policy.js";
+import { initializeBlankNexusProject, materializeAndValidateNexusProject } from "./nexus-world-project.js";
+import {
+  createProceduralMeshProgram,
+  proceduralMeshSources,
+  validateProceduralMeshSettings,
+} from "./procedural-mesh-program.js";
+import { worldFactoryCapabilityCatalog } from "./world-domain-planner.js";
 
 const rootDir = resolve(dirname(new URL(import.meta.url).pathname), "..");
 
@@ -49,16 +58,29 @@ function parseViewport(value) {
   return { width, height };
 }
 
-function loadProfile(profilePath) {
-  if (!profilePath) throw new Error("--profile is required for scene.agent-showcase.");
-  const path = resolve(profilePath);
+function scaleTimeline(timeline, sourceDuration, targetDuration) {
+  if (!timeline || sourceDuration === targetDuration) return timeline;
+  const ratio = targetDuration / sourceDuration;
+  return Object.fromEntries(Object.entries(timeline).map(([key, value]) => [
+    key,
+    Number.isFinite(Number(value)) ? Number((Number(value) * ratio).toFixed(4)) : value,
+  ]));
+}
+
+function loadProfile(profilePath, prompt, seed, domainPlanPath = null) {
+  if (!profilePath && !prompt) throw new Error("scene.agent-showcase requires --profile or --prompt.");
+  if (seed != null && !prompt) throw new Error("--seed is available only with --prompt.");
+  if (domainPlanPath && !prompt) throw new Error("--agent-plan is available only with --prompt.");
+  const path = resolve(profilePath || join(rootDir, "profiles", "world-factory-forest.json"));
   if (!existsSync(path)) throw new Error(`Showcase profile not found: ${path}`);
-  const profile = JSON.parse(readFileSync(path, "utf8"));
+  const template = JSON.parse(readFileSync(path, "utf8"));
+  const domainPlan = domainPlanPath ? JSON.parse(readFileSync(resolve(domainPlanPath), "utf8")) : null;
+  let profile = prompt ? compileWorldPrompt(template, prompt, { domainPlan, seed }) : template;
   if (!["nexus.agent-showcase.v1", "nexus.forest-showcase.v1"].includes(profile.schemaVersion)) {
     throw new Error(`Unsupported showcase schema: ${profile.schemaVersion || "missing"}`);
   }
-  if (!Array.isArray(profile.steps) || profile.steps.length < 2) {
-    throw new Error("Agent showcase requires at least two ordered build steps.");
+  if (!Array.isArray(profile.steps) || profile.steps.length < 1) {
+    throw new Error("Agent showcase requires at least one ordered build step.");
   }
   if (!Array.isArray(profile.agents) || profile.agents.length !== 3) {
     throw new Error("WorldFactory-Harness showcase requires exactly three agents.");
@@ -98,7 +120,82 @@ function loadProfile(profilePath) {
       }
     }
   }
-  return { path, profile };
+  profile = applyNaturalGenerationPolicy(profile, prompt);
+  return { path, profile, prompt: prompt || null };
+}
+
+function applySettingsPatches(profile, settingsPatches) {
+  if (settingsPatches == null) return profile;
+  if (typeof settingsPatches !== "object" || Array.isArray(settingsPatches)) {
+    throw new Error("World settings patches must be an object keyed by step or capability ID.");
+  }
+  const normalized = {};
+  const steps = profile.steps.map((step) => {
+    const raw = settingsPatches[step.id] ?? settingsPatches[step.capabilityId];
+    if (raw == null) return step;
+    const patch = validateProceduralMeshSettings(step.type, raw);
+    normalized[step.id] = patch;
+    return {
+      ...step,
+      factorySettings: {
+        ...(step.factorySettings ?? {}),
+        ...patch,
+      },
+    };
+  });
+  const knownKeys = new Set(profile.steps.flatMap((step) => [step.id, step.capabilityId]).filter(Boolean));
+  const unknown = Object.keys(settingsPatches).filter((key) => !knownKeys.has(key));
+  if (unknown.length) throw new Error(`World settings patches reference unknown steps or capabilities: ${unknown.join(", ")}.`);
+  if (Object.keys(normalized).length === 0) throw new Error("World settings patches did not change any selected step.");
+  return {
+    ...profile,
+    steps,
+    promptCompilation: {
+      ...profile.promptCompilation,
+      settingsPatches: normalized,
+    },
+  };
+}
+
+export function listWorldFactoryCapabilitiesAction({ profilePath = null } = {}) {
+  const path = resolve(profilePath || join(rootDir, "profiles", "world-factory-forest.json"));
+  if (!existsSync(path)) throw new Error(`Showcase profile not found: ${path}`);
+  const profile = JSON.parse(readFileSync(path, "utf8"));
+  return {
+    schemaVersion: "nexus.world-factory-capability-catalog.v1",
+    profilePath: path,
+    capabilities: worldFactoryCapabilityCatalog(profile).map((capability) => ({
+      id: capability.id,
+      domainPath: capability.domainPath,
+      factoryType: capability.factoryType || null,
+      nativeCapability: capability.nativeCapability || null,
+      available: capability.available,
+      terms: capability.terms,
+      genericTerms: capability.genericTerms || [],
+      biomeAffinity: capability.biomeAffinity || [],
+      review: capability.review,
+      settingsContract: capability.settingsContract,
+    })),
+  };
+}
+
+export function planWorldPromptAction({ agentPlanPath = null, profilePath = null, prompt, seed = null } = {}) {
+  if (!String(prompt || "").trim()) throw new Error("world-domain plan requires --prompt.");
+  const loaded = loadProfile(profilePath, String(prompt).trim(), seed, agentPlanPath);
+  return {
+    schemaVersion: "nexus.world-domain-plan-result.v1",
+    profilePath: loaded.path,
+    prompt: loaded.prompt,
+    seed: loaded.profile.seed,
+    domainPlan: loaded.profile.worldDomainPlan,
+    selectedObjects: loaded.profile.steps.map((step) => ({
+      id: step.id,
+      label: step.label,
+      type: step.type,
+      capabilityId: step.capabilityId,
+      domainPath: step.domainPath,
+    })),
+  };
 }
 
 function mimeType(path) {
@@ -530,7 +627,7 @@ function createShowcaseHtml(profile) {
 </html>`;
 }
 
-async function runRealtimeLiveLoop({ dimensions, harness, id, loaded, outputPath, profile, runDir, webDir }) {
+async function runRealtimeLiveLoop({ dimensions, harness, id, loaded, nexusProject, outputPath, profile, runDir, webDir }) {
   const videoDir = join(runDir, "video-source");
   ensureDir(videoDir);
   const errors = [];
@@ -597,7 +694,9 @@ async function runRealtimeLiveLoop({ dimensions, harness, id, loaded, outputPath
         ? `Validated ${profile.steps.length} generated library assets and flew through ${finalState.terrain.streamedChunkCount} validated streamed chunks in one continuous take.`
         : `Validated ${profile.steps.length} generated library assets and flew through a preassembled ${finalState.library.massiveSectorCount}-sector world in one continuous take.`,
     runId: id,
-    profilePath: loaded.path,
+    profilePath: loaded.compiledPath || loaded.path,
+    templateProfilePath: loaded.compiledPath ? loaded.path : null,
+    prompt: loaded.prompt,
     webPath: join(webDir, "index.html"),
     videoPath: target,
     sourceVideoPath: rawVideoPath,
@@ -611,6 +710,7 @@ async function runRealtimeLiveLoop({ dimensions, harness, id, loaded, outputPath
     playbackOffsetSeconds,
     consoleErrors: errors,
     harness,
+    nexusProject,
     terrainValidation: summarizeTerrainValidation(profile.nexusTerrain),
     libraryValidationPath,
     proof: finalState,
@@ -620,32 +720,208 @@ async function runRealtimeLiveLoop({ dimensions, harness, id, loaded, outputPath
   return { ...report, reportPath };
 }
 
+async function runRealtimeCapture({ browserHeadless, dimensions, harness, id, loaded, nexusProject, outputPath, profile, runDir, webDir }) {
+  const videoDir = join(runDir, "video-source");
+  ensureDir(videoDir);
+  const errors = [];
+  const { server, url } = await createStaticServer(webDir);
+  let browser = null;
+  let context = null;
+  let page = null;
+  let video = null;
+  let videoStartedAt = 0;
+  let finalState = null;
+  let playbackOffsetSeconds = 0;
+  const posterPath = join(runDir, "poster.png");
+  try {
+    browser = await chromium.launch({ headless: browserHeadless });
+    context = await browser.newContext({
+      recordVideo: { dir: videoDir, size: dimensions },
+      viewport: dimensions,
+    });
+    page = await context.newPage();
+    video = page.video();
+    videoStartedAt = Date.now();
+    page.setDefaultTimeout(180_000);
+    page.setDefaultNavigationTimeout(180_000);
+    page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.goto(`${url}?capture=1`, { waitUntil: "networkidle" });
+    try {
+      await page.waitForSelector("body[data-ready='true']");
+    } catch (error) {
+      const startupState = await page.evaluate(() => ({
+        bodyReady: document.body?.dataset?.ready || null,
+        documentReady: document.readyState,
+        hasShowcaseApi: Boolean(window.__NEXUS_SHOWCASE__),
+      })).catch(() => null);
+      throw new Error(`Showcase startup failed: ${error.message}; state=${JSON.stringify(startupState)}; browserErrors=${JSON.stringify(errors.slice(-8))}`);
+    }
+    playbackOffsetSeconds = (Date.now() - videoStartedAt) / 1000;
+    const finalTime = Math.max(0, profile.durationSeconds - (1 / profile.fps));
+    await page.evaluate(() => window.__NEXUS_SHOWCASE__.startRealtime());
+    await page.waitForTimeout(finalTime * 1000);
+    finalState = await page.evaluate((time) => window.__NEXUS_SHOWCASE__.renderAt(time), finalTime);
+    await page.screenshot({ path: posterPath });
+  } finally {
+    if (page) await page.close().catch(() => {});
+    if (context) await context.close().catch(() => {});
+    if (browser) await browser.close().catch(() => {});
+    await new Promise((resolveClose) => server.close(resolveClose));
+  }
+
+  const sourceVideo = await video.path();
+  const rawVideoPath = join(runDir, `${id}-source.webm`);
+  copyFileSync(sourceVideo, rawVideoPath);
+  const target = resolve(outputPath || join(runDir, `${id}.mp4`));
+  ensureDir(dirname(target));
+  const frameCount = Math.round(profile.durationSeconds * profile.fps);
+  const ffmpeg = spawnSync("ffmpeg", [
+    "-y",
+    "-i", rawVideoPath,
+    "-ss", playbackOffsetSeconds.toFixed(3),
+    "-vf", `fps=${profile.fps},tpad=stop_mode=clone:stop_duration=1,setpts=PTS-STARTPTS`,
+    "-t", String(profile.durationSeconds),
+    "-frames:v", String(frameCount),
+    "-c:v", "libx264",
+    "-preset", "medium",
+    "-crf", "18",
+    "-pix_fmt", "yuv420p",
+    "-movflags", "+faststart",
+    "-an",
+    target,
+  ], { encoding: "utf8" });
+  if (ffmpeg.status !== 0) throw new Error(`FFmpeg realtime encode failed: ${ffmpeg.stderr}`);
+  const encodedProbe = spawnSync("ffprobe", [
+    "-v", "error",
+    "-select_streams", "v:0",
+    "-show_entries", "stream=codec_name",
+    "-of", "default=noprint_wrappers=1:nokey=1",
+    target,
+  ], { encoding: "utf8" });
+  if (encodedProbe.status !== 0 || !encodedProbe.stdout.trim()) {
+    throw new Error(`Realtime capture produced no video stream: ${encodedProbe.stderr || target}`);
+  }
+
+  const expectedObjects = profile.steps.length;
+  const proceduralEditorProof = profile.presentation?.mode !== "procedural-editor"
+    || (finalState?.meshProgram?.settingsApplied === true
+      && finalState?.meshProgram?.previewRebuilt === true
+      && finalState?.meshProgram?.libraryProgramCount === expectedObjects
+      && Boolean(finalState?.meshProgram?.digest));
+  const proofPassed = profile.schemaVersion !== "nexus.forest-showcase.v1"
+    || (finalState?.test?.validated === expectedObjects
+      && finalState?.world?.committed === expectedObjects
+      && finalState?.complete === true
+      && proceduralEditorProof
+      && (!profile.nexusTerrain || finalState?.terrain?.status === "passed"));
+  const report = {
+    status: errors.length || !proofPassed ? "failed" : "passed",
+    summary: errors.length || !proofPassed
+      ? errors.length
+        ? "The realtime agent showcase rendered with browser errors."
+        : "The realtime agent showcase ended before its validation and world-commit proof completed."
+      : `Rendered ${profile.steps.length} agent-guided objects across ${profile.durationSeconds} seconds at ${profile.fps} FPS.`,
+    runId: id,
+    profilePath: loaded.compiledPath || loaded.path,
+    templateProfilePath: loaded.compiledPath ? loaded.path : null,
+    prompt: loaded.prompt,
+    webPath: join(webDir, "index.html"),
+    videoPath: target,
+    sourceVideoPath: rawVideoPath,
+    posterPath,
+    frameCount,
+    objectCount: profile.steps.length,
+    viewport: dimensions,
+    fps: profile.fps,
+    durationSeconds: profile.durationSeconds,
+    captureMode: browserHeadless ? "realtime-headless" : "realtime-headed",
+    playbackOffsetSeconds,
+    consoleErrors: errors,
+    harness,
+    nexusProject,
+    terrainValidation: summarizeTerrainValidation(profile.nexusTerrain),
+    proof: finalState,
+  };
+  const reportPath = join(runDir, "report.json");
+  writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
+  return { ...report, reportPath };
+}
+
 export async function runAgentShowcaseAction({
+  browserHeadless = true,
+  captureMode = "deterministic",
+  captureFps = null,
   duration,
+  domainPlanPath,
   fps,
   liveLoop = false,
   nexusEngineRoot,
   nexusProtoKitsRoot,
   outputPath,
+  presentationMode = null,
   profilePath,
+  prompt,
   runId,
+  seed,
+  settingsPatches = null,
   useCodex = false,
   viewport = "1920x1080",
 }) {
-  const loaded = loadProfile(profilePath);
-  const profile = {
+  const loaded = loadProfile(profilePath, prompt, seed, domainPlanPath);
+  const sourceDuration = Number(loaded.profile.durationSeconds || 15);
+  const targetDuration = Number(duration || sourceDuration);
+  const outputFps = Number(fps || loaded.profile.fps || 30);
+  const resolvedCaptureFps = Number(captureFps || outputFps);
+  if (!Number.isFinite(targetDuration) || targetDuration <= 0) throw new Error("Showcase duration must be a positive number.");
+  if (!Number.isFinite(outputFps) || outputFps <= 0) {
+    throw new Error("Showcase FPS must be a positive number.");
+  }
+  if (!Number.isFinite(resolvedCaptureFps) || resolvedCaptureFps <= 0 || resolvedCaptureFps > outputFps) {
+    throw new Error("Showcase capture FPS must be positive and no greater than the output FPS.");
+  }
+  if (!["deterministic", "realtime"].includes(captureMode)) {
+    throw new Error('Showcase capture mode must be "deterministic" or "realtime".');
+  }
+  let profile = {
     ...loaded.profile,
-    durationSeconds: Number(duration || loaded.profile.durationSeconds || 15),
-    fps: Number(fps || loaded.profile.fps || 30),
+    durationSeconds: targetDuration,
+    fps: outputFps,
+    presentation: presentationMode ? { mode: presentationMode } : loaded.profile.presentation,
+    timeline: scaleTimeline(loaded.profile.timeline, sourceDuration, targetDuration),
   };
+  profile = applySettingsPatches(profile, settingsPatches);
+  if (prompt && profile.generation?.nexusTerrain && !nexusEngineRoot && !nexusProtoKitsRoot) {
+    const { nexusTerrain: _nexusTerrain, ...generation } = profile.generation;
+    profile = {
+      ...profile,
+      generation,
+      promptCompilation: {
+        ...profile.promptCompilation,
+        terrainMode: "local-showcase",
+      },
+    };
+  } else if (prompt) {
+    profile.promptCompilation = {
+      ...profile.promptCompilation,
+      terrainMode: "validated-nexus-terrain",
+    };
+  }
   const dimensions = parseViewport(viewport);
   const id = safeSlug(runId || `${profile.seed}-${Date.now()}`);
   profile.runId = id;
   const runDir = join(rootDir, ".nexus-simulator", "showcases", id);
+  if (existsSync(runDir) && readdirSync(runDir).length > 0) {
+    throw new Error(`Showcase run directory already exists. Use a new --run-id so world generation starts from scratch: ${runDir}`);
+  }
   const webDir = join(runDir, "web");
   const framesDir = join(runDir, "frames");
   ensureDir(webDir);
   ensureDir(framesDir);
+  if (prompt) {
+    loaded.compiledPath = join(runDir, "prompt-profile.json");
+  }
+  const nexusProjectContext = initializeBlankNexusProject({ nexusEngineRoot, profile, runDir });
   const harness = await runWorldFactoryHarness(profile, runDir, { useCodex });
   if (harness.status !== "passed") {
     throw new Error(`WorldFactory-Harness Codex run failed: ${JSON.stringify({ agents: harness.agents, review: harness.review, revisions: harness.revisions })}`);
@@ -654,7 +930,19 @@ export async function runAgentShowcaseAction({
   const librarySelections = new Map((harness.library?.assets || []).map((asset) => [asset.id, asset.selected]));
   profile.steps = profile.steps.map((step) => {
     const selected = librarySelections.get(step.id);
-    return selected ? { ...step, algorithm: selected.algorithm, seed: selected.seed, confidence: selected.confidence } : step;
+    const selectedStep = selected ? { ...step, algorithm: selected.algorithm, seed: selected.seed, confidence: selected.confidence } : step;
+    return { ...selectedStep, meshProgram: createProceduralMeshProgram(selectedStep) };
+  });
+  profile.meshPrograms = {
+    schemaVersion: "nexus.procedural-mesh-program-library.v1",
+    execution: "typed-runtime-interpreter",
+    sources: proceduralMeshSources(),
+    programs: profile.steps.map((step) => step.meshProgram),
+  };
+  const nexusProject = await materializeAndValidateNexusProject({
+    context: nexusProjectContext,
+    harness,
+    profile,
   });
   if (profile.generation?.nexusTerrain) {
     if (!nexusEngineRoot || !nexusProtoKitsRoot) {
@@ -674,47 +962,78 @@ export async function runAgentShowcaseAction({
   copyThreeVendor(webDir);
   writeFileSync(join(webDir, "index.html"), createShowcaseHtml(profile));
   writeFileSync(join(runDir, "profile.json"), `${JSON.stringify(profile, null, 2)}\n`);
+  if (loaded.compiledPath) writeFileSync(loaded.compiledPath, `${JSON.stringify(profile, null, 2)}\n`);
 
   if (liveLoop) {
-    return runRealtimeLiveLoop({ dimensions, harness, id, loaded, outputPath, profile, runDir, webDir });
+    return runRealtimeLiveLoop({ dimensions, harness, id, loaded, nexusProject, outputPath, profile, runDir, webDir });
+  }
+
+  if (captureMode === "realtime") {
+    return runRealtimeCapture({ browserHeadless, dimensions, harness, id, loaded, nexusProject, outputPath, profile, runDir, webDir });
   }
 
   const errors = [];
   let finalState = null;
   const { server, url } = await createStaticServer(webDir);
-  const browser = await chromium.launch({ headless: true });
-  const page = await browser.newPage({ viewport: dimensions, deviceScaleFactor: 1 });
-  page.on("console", (message) => {
-    if (message.type() === "error") errors.push(message.text());
-  });
-  page.on("pageerror", (error) => errors.push(error.message));
+  let browser = null;
+  let page = null;
 
   try {
+    browser = await chromium.launch({ headless: browserHeadless });
+    page = await browser.newPage({ viewport: dimensions, deviceScaleFactor: 1 });
+    page.setDefaultTimeout(120_000);
+    page.setDefaultNavigationTimeout(120_000);
+    page.on("console", (message) => {
+      if (message.type() === "error") errors.push(message.text());
+    });
+    page.on("pageerror", (error) => errors.push(error.message));
     await page.goto(`${url}?capture=1`, { waitUntil: "networkidle" });
     await page.waitForSelector("body[data-ready='true']");
-    const frameCount = Math.round(profile.durationSeconds * profile.fps);
+    const frameCount = Math.round(profile.durationSeconds * resolvedCaptureFps);
     const digits = String(frameCount).length;
     for (let frame = 0; frame < frameCount; frame += 1) {
-      await page.evaluate((time) => window.__NEXUS_SHOWCASE__.renderAt(time), frame / profile.fps);
-      await page.screenshot({ path: join(framesDir, `frame-${String(frame).padStart(digits, "0")}.png`) });
+      const frameTime = frame / resolvedCaptureFps;
+      const framePath = join(framesDir, `frame-${String(frame).padStart(digits, "0")}.jpg`);
+      let captured = false;
+      let captureError = null;
+      for (let attempt = 1; attempt <= 2 && !captured; attempt += 1) {
+        try {
+          await page.evaluate((time) => window.__NEXUS_SHOWCASE__.renderAt(time), frameTime);
+          await page.screenshot({ path: framePath, type: "jpeg", quality: 90, timeout: 90_000 });
+          captured = true;
+        } catch (error) {
+          captureError = error;
+          if (attempt < 2) await page.waitForTimeout(250);
+        }
+      }
+      if (!captured) {
+        throw new Error(`Deterministic capture failed at frame ${frame + 1}/${frameCount} (${frameTime.toFixed(2)}s): ${captureError?.message || "unknown screenshot error"}`);
+      }
     }
     await page.evaluate((time) => window.__NEXUS_SHOWCASE__.renderAt(time), profile.durationSeconds - 1 / profile.fps);
     finalState = await page.evaluate(() => window.__NEXUS_SHOWCASE_STATE__);
     await page.screenshot({ path: join(runDir, "poster.png") });
   } finally {
-    await browser.close();
+    if (browser) await browser.close().catch(() => {});
     await new Promise((resolveClose) => server.close(resolveClose));
   }
 
   const target = resolve(outputPath || join(runDir, `${id}.mp4`));
   ensureDir(dirname(target));
-  const patternDigits = String(Math.round(profile.durationSeconds * profile.fps)).length;
+  const capturedFrameCount = Math.round(profile.durationSeconds * resolvedCaptureFps);
+  const patternDigits = String(capturedFrameCount).length;
+  const cadenceFilter = resolvedCaptureFps === profile.fps
+    ? null
+    : `tpad=stop_mode=clone:stop_duration=1,fps=fps=${profile.fps}:round=near,trim=duration=${profile.durationSeconds},setpts=PTS-STARTPTS`;
   const ffmpeg = spawnSync("ffmpeg", [
     "-y",
-    "-framerate", String(profile.fps),
-    "-i", join(framesDir, `frame-%0${patternDigits}d.png`),
+    "-framerate", String(resolvedCaptureFps),
+    "-i", join(framesDir, `frame-%0${patternDigits}d.jpg`),
+    ...(cadenceFilter ? ["-vf", cadenceFilter] : []),
+    "-t", String(profile.durationSeconds),
+    "-frames:v", String(Math.round(profile.durationSeconds * profile.fps)),
     "-c:v", "libx264",
-    "-preset", "slow",
+    "-preset", "medium",
     "-crf", "16",
     "-pix_fmt", "yuv420p",
     "-movflags", "+faststart",
@@ -736,7 +1055,9 @@ export async function runAgentShowcaseAction({
         : "The agent showcase rendered, but its final build, view, validate, or world-commit proof was incomplete."
       : `Rendered ${profile.steps.length} agent-guided objects across ${profile.durationSeconds} seconds at ${profile.fps} FPS.`,
     runId: id,
-    profilePath: loaded.path,
+    profilePath: loaded.compiledPath || loaded.path,
+    templateProfilePath: loaded.compiledPath ? loaded.path : null,
+    prompt: loaded.prompt,
     webPath: join(webDir, "index.html"),
     videoPath: target,
     posterPath: join(runDir, "poster.png"),
@@ -744,9 +1065,14 @@ export async function runAgentShowcaseAction({
     objectCount: profile.steps.length,
     viewport: dimensions,
     fps: profile.fps,
+    captureFps: resolvedCaptureFps,
+    capturedFrameCount,
+    cadenceMode: resolvedCaptureFps === profile.fps ? "native" : "frame-hold",
     durationSeconds: profile.durationSeconds,
+    captureMode: "deterministic-frames",
     consoleErrors: errors,
     harness,
+    nexusProject,
     terrainValidation: summarizeTerrainValidation(profile.nexusTerrain),
     proof: finalState,
   };

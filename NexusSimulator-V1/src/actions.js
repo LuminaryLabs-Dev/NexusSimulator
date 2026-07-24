@@ -5,7 +5,16 @@ import { checkScenario } from "./runtime.js";
 import { runEventsInSimSpace, runScenarioInSimSpace } from "./simspace.js";
 import { inspectTool, listTools, toolForMedium } from "./tool-catalog.js";
 export { runSceneBuildProofAction } from "./scene-build-proof.js";
-export { runAgentShowcaseAction } from "./agent-showcase.js";
+export { listWorldFactoryCapabilitiesAction, planWorldPromptAction, runAgentShowcaseAction } from "./agent-showcase.js";
+export {
+  createNexusSimulatorHeadlessAdapter,
+  inspectNexusSimulatorHeadlessCommand,
+} from "./headless-editor-adapter.js";
+export {
+  loadNexusSimulatorHeadlessRequest,
+  resolveNexusEngineRoot,
+  runNexusSimulatorHeadlessRequest,
+} from "./headless-editor-runner.js";
 export { runWorldEditorSessionAction } from "./world-editor-session.js";
 export { runKitContractProof as runKitContractProofAction } from "./kit-contract-proof.js";
 export { runKitRuntimeProof as runKitRuntimeProofAction } from "./kit-runtime-proof.js";
